@@ -1,0 +1,406 @@
+---
+title: "Producción de una pequeña turbina eólica urbana: análisis y modelización estadística con datos SCADA"
+subtitle: "Actividad 1 · Entornos de Computación Estadística · Máster en Estadística Aplicada (Universidad de Granada)"
+author:
+  - "María Alonso León"
+  - "Álvaro [Apellidos]"
+  - "Daniel [Apellidos]"
+date: "`r source(here::here('R', '00_utils.R')); format_date_es()`"
+lang: es
+documentclass: article
+classoption: [a4paper, titlepage]
+fontsize: 11pt
+geometry: "margin=2.4cm"
+linkcolor: "acento"
+urlcolor: "acento"
+citecolor: "acento"
+bibliography: references.bib
+link-citations: true
+output:
+  bookdown::pdf_document2:
+    number_sections: true
+    toc: false
+    fig_caption: true
+    latex_engine: pdflatex
+    includes:
+      in_header: preamble.tex
+---
+
+<!--
+=================================================================================
+ESTRUCTURA Y RESPONSABLES
+  1 Introducción ............. María (contexto) + GRUPO (pregunta y objetivos)
+  2 Los datos ................ María
+  3 Análisis exploratorio .... María
+  4 Modelo estadístico ....... Álvaro
+  5 Análisis estadístico ..... Álvaro (5.1-5.3) / Daniel (5.4-5.6)
+  6 Conclusiones ............. Daniel (+ revisión del grupo)
+Reglas: la lógica vive en R/; aquí solo narrativa y llamadas a funciones.
+Límite: 15 páginas sin portada ni referencias. Presupuesto orientativo:
+secciones 1-3 ~ 5 páginas.
+Todas las cifras del texto se calculan a partir de los datos. Los adjetivos
+("fuerte", "débil", ...) deben revisarse si cambian los datos.
+=================================================================================
+-->
+
+```{r setup, include=FALSE}
+# Figuras a tamaño real: ancho de texto = 21 cm - 2 x 2,4 cm = 6,38 in, de
+# modo que el texto se imprime al tamaño de theme_wind_report() (R/11_plots.R).
+knitr::opts_chunk$set(
+  echo = FALSE, message = FALSE, warning = FALSE,
+  fig.align = "center", fig.pos = "!htb", out.width = "100%",
+  fig.width = 6.38, fig.height = 2.4, dev = "pdf"
+)
+source(here::here("R", "00_utils.R"))
+load_project_packages()
+source_project_functions()
+
+config    <- load_config()
+response  <- config$analysis$response
+rated     <- config$reference$rated_power_w
+data      <- load_analysis_data("processed", config)
+files     <- list_raw_files()
+checks    <- run_data_quality_checks(data, files, config)
+
+y         <- data[[response]]
+pct_zero  <- 100 * mean(y == 0, na.rm = TRUE)
+status    <- summarise_by_status(data, "turbine_status", response)
+top_prod  <- status[which.max(status$n * status$pct_producing), ]
+rho       <- response_correlations(data, c("rpm", "windspeed_ref_ms",
+                                           "voltage_in_v", "temp_nacelle_c"),
+                                   response)
+rho_of    <- function(v) fmt_num(rho$correlation[rho$variable == v], 2)
+rotor_cor <- correlation_matrix(data, c("rpm", "windspeed_ref_ms",
+                                        "voltage_in_v"))
+rotor_rng <- range(rotor_cor[upper.tri(rotor_cor)])
+acf_h     <- acf_table(regular_series(data, response, 3600), lag_max = 48)
+acf_at    <- function(l) fmt_num(acf_h$acf[acf_h$lag == l], 2)
+power_cmp <- compare_power_measures(data, response, "power_reg_w")
+high      <- high_power_check(data, rated, response)
+ga        <- checks$gap_accounting
+energy_dec <- checks$counter_decreases[checks$counter_decreases$counter ==
+                                         "energy_wh_cum", ]
+offsets   <- checks$cross_year$median_log_minus_inv_h
+y_lim     <- c(0, max(y, na.rm = TRUE))
+```
+
+# Introducción
+
+Los registros SCADA de alta frecuencia permiten estudiar con herramientas
+estadísticas de qué variables de funcionamiento depende la potencia que entrega
+un aerogenerador y con qué incertidumbre puede describirse esa relación. Este
+trabajo aplica el flujo de análisis de la asignatura [@ugr_ece] ---lectura y
+depuración de datos externos, análisis exploratorio y modelos de regresión con
+su diagnóstico [@faraway2004; @crawley2015]--- a los datos de una pequeña
+turbina eólica urbana, una Skystream 3.7 instalada en la Universidad de São
+Paulo [@bassi2023dataset]. El informe se genera con R Markdown
+[@xie2018rmarkdown; @xie2015knitr] a partir de los ficheros originales, sin
+pasos manuales.
+
+El análisis exploratorio (Sección \@ref(eda)) muestra que la potencia de
+salida es nula en el `r fmt_num(pct_zero)` % de los registros, por lo que antes
+de formular el modelo el grupo debe decidir **qué población se modeliza**
+(Sección \@ref(poblacion)). Esa elección determina la pregunta de
+investigación y la especificación del modelo.
+
+\pendiente{Grupo}{Formular la pregunta de investigación y los objetivos tras
+decidir la población de análisis (decisión D-M6). Propuestas preliminares en
+docs/methodology\_notes.md.}
+
+# Los datos {#datos}
+
+## Fuente y contexto
+
+Los datos proceden del repositorio *Operation SCADA Dataset of an Urban Small
+Wind Turbine in São Paulo, Brazil* [@bassi2023dataset], publicado en Zenodo
+con licencia CC BY 4.0 y descrito en @bassi2023data. Según sus autores,
+corresponden a una turbina Skystream 3.7 de 1,8 kW de potencia nominal
+instalada sobre un edificio del campus. Hay un fichero CSV por año con 39
+columnas ---tiempos, magnitudes eléctricas del inversor y de la red, velocidad
+de giro, temperaturas, contadores y códigos de estado--- y, según el
+diccionario, un registro por minuto.
+
+El artículo que acompaña al conjunto lo presenta y resume estadísticamente su
+operación. Este trabajo no pretende replicarlo: su aportación está en la
+pregunta de investigación, la preparación reproducible y documentada de los
+datos, el análisis de los estados operativos y la modelización estadística de
+la potencia con su diagnóstico.
+
+Se utilizan `r n_es(nrow(files), "fichero anual", "ficheros anuales")`
+(`r paste(unique(range(files$year)), collapse = "--")`) con
+`r n_es(nrow(data), "registro", "registros")`, entre el
+`r format(min(data$log_time), "%d/%m/%Y")` y el
+`r format(max(data$log_time), "%d/%m/%Y")` (Tabla \@ref(tab:tab-coverage)).
+
+```{r tab-coverage}
+table_annual_coverage(checks$records_by_year, checks$sampling)
+```
+
+## Preparación del conjunto de datos
+
+La preparación (`scripts/01_build_dataset.R`) encadena funciones del directorio
+`R/` y no modifica los ficheros originales, cuya huella MD5 se comprueba antes y
+después del proceso. Se distinguen dos tipos de operaciones:
+
+* **Correcciones técnicas**, que no alteran la población: nombres y tipos según
+  el diccionario; normalización de la marca temporal `Log Time`, cuyo
+  separador de milisegundos alterna entre punto y coma; eliminación de
+  duplicados exactos; y ordenación temporal. `Log Time` se trata como hora de
+  reloj, sin aplicar reglas de horario de verano que el diccionario no
+  especifica.
+* **Decisiones metodológicas** (población, periodo, estados, agregación), que
+  solo se aplican al conjunto del modelo desde `config/config.yml` y se
+  justifican en `docs/decisions.md`. Las secciones 2 y 3 usan **todos** los
+  registros.
+
+```{r pipeline-code, echo=TRUE, eval=FALSE}
+files <- list_raw_files()        # detecta data/raw/*.csv
+raw   <- load_all_years(files)   # valida el esquema y combina los años
+clean <- clean_technical(raw)    # solo correcciones técnicas
+data  <- add_features(clean)     # variables derivadas, sin filtrar filas
+```
+
+La Tabla \@ref(tab:tab-quality) resume la validación. Un *hueco* es un
+intervalo de más de 3 minutos entre registros consecutivos, con todos los años
+combinados, y su duración es el intervalo completo. Hay
+`r n_es(ga$n_gaps, "hueco", "huecos")`, que suman `r fmt_int(ga$gap_hours)`
+horas: el `r fmt_num(ga$pct_span_in_gaps)` % del intervalo calendario
+comprendido entre el primer y el último registro. Se ha verificado que ese
+periodo se reparte exactamente entre intervalos normales y
+huecos`r if (ga$n_gaps_crossing_year > 0) paste0(", y que los huecos que cruzan un cambio de año (", fmt_int(ga$n_gaps_crossing_year), ") se cuentan una sola vez") else ""`.
+
+```{r tab-quality}
+table_quality_overview(quality_overview(checks))
+```
+
+Tres hechos no explicados por la documentación quedan registrados, sin
+interpretarse como fallos: (i) la mediana anual de `Log Time` $-$ `Inv Time`
+(hora local menos GMT, según el diccionario) está entre
+`r fmt_num(min(offsets), 2)` y `r fmt_num(max(offsets), 2)` horas, lo que no
+coincide con la diferencia esperable entre la hora de São Paulo y GMT; por
+ello se usa `Log Time` como referencia temporal; (ii) el contador acumulado de
+energía (`watt-hours`) desciende `r fmt_int(energy_dec$n_decreases)` veces, en
+el `r fmt_num(energy_dec$pct_size_1)` % de los casos en 1 Wh y en el
+`r fmt_num(energy_dec$pct_response_zero)` % con potencia nula; y (iii) hay
+registros por encima de la potencia nominal (Sección \@ref(respuesta)).
+
+## Variable respuesta y variables candidatas
+
+El diccionario registra la potencia en dos columnas: la potencia de salida del
+inversor (`Power out`, *power output of the inverter*) y la potencia del
+generador (`Power reg`, *power from generator*), ambas en W. Su asociación
+lineal es prácticamente perfecta (correlación de Pearson
+`r fmt_num(power_cmp$summary$correlation, 4)`); la correlación de Spearman,
+calculada sobre las mismas observaciones, es menor
+(`r fmt_num(power_cmp$summary$spearman, 2)`). La diferencia se debe en parte a
+los registros en que una de las dos es nula y la otra no
+(`r fmt_num(power_cmp$summary$pct_one_zero)` %), que alteran los rangos cerca
+de cero. Ninguna de las dos correlaciones implica que las variables sean
+equivalentes. Se elige
+provisionalmente la potencia de salida por su interpretación como potencia a la
+salida del inversor (decisión D-M1), elección que se revisará si sus
+discrepancias con la potencia del generador resultan relevantes
+(Tabla \@ref(tab:tab-response)).
+
+La Tabla \@ref(tab:tab-candidates) recoge las variables más relevantes. Del
+diccionario se derivan dos precauciones. La velocidad de viento de referencia
+(`Windspeed (ref)`) se calcula a partir de la velocidad de giro (`RPM`) y no
+mide el viento de forma independiente. Además, la corriente de salida
+(`Current out`) y la potencia del generador son consecuencia de la potencia
+producida, por lo que usarlas como predictoras sería circular.
+
+```{r tab-candidates}
+table_candidate_variables_short(candidate_variables(data, response))
+```
+
+# Análisis descriptivo y exploratorio {#eda}
+
+## Distribución de la potencia y población de análisis {#poblacion}
+
+La potencia de salida es nula en el `r fmt_num(pct_zero)` % de los registros, y
+los valores positivos tienen una distribución muy asimétrica a la derecha
+(Figura \@ref(fig:fig-power-dist); Tabla \@ref(tab:tab-descriptive)). Estas
+características describen la distribución *marginal* de la respuesta. Por sí
+solas no determinan si un modelo lineal es adecuado, porque sus hipótesis se
+refieren a la distribución de los errores *condicionada* a las predictoras.
+Sí son señales que condicionan dos elecciones previas: la población de análisis
+(decisión central D-M6: toda la potencia observada, la potencia condicionada a
+producción positiva o una población operacional definida por estados o rangos
+de velocidad de giro) y la especificación del modelo. La adecuación de ambas
+deberá evaluarse con el ajuste y el diagnóstico de residuos.
+
+```{r fig-power-dist, fig.height=1.85, fig.cap=sprintf("Distribución de la potencia de salida en los registros con potencia positiva; se omite el %s %% de registros con potencia nula. Línea discontinua: potencia nominal (%s W).", fmt_num(pct_zero), fmt_int(rated))}
+plot_power_distribution(data, response, reference = rated)
+```
+
+```{r tab-descriptive}
+table_descriptive(numeric_summary(data, c(response, "rpm", "windspeed_ref_ms",
+                                         "voltage_in_v", "voltage_l1_v",
+                                         "temp_nacelle_c")))
+```
+
+## Comprobaciones de la variable respuesta {#respuesta}
+
+La Tabla \@ref(tab:tab-response) resume dos comprobaciones. La diferencia
+entre la potencia de salida y la del generador es pequeña en la mayoría de los
+registros, pero alcanza valores extremos aislados. Además,
+`r n_es(high$summary$n_above, "registro supera", "registros superan")` la
+potencia nominal de `r fmt_int(rated)` W, con un máximo de
+`r fmt_int(high$summary$max_power)` W. La documentación disponible no explica
+estos valores: el diccionario solo describe `Power max` como la potencia
+máxima del inversor, con un valor registrado de
+`r fmt_int(high$summary$max_power_max_recorded)` W. Por eso se conservan, su
+interpretación queda pendiente y su posible influencia deberá examinarse en el
+diagnóstico del modelo.
+
+```{r tab-response}
+table_response_checks(power_cmp, high)
+```
+
+## Relación con las variables de funcionamiento
+
+La relación entre la potencia de salida y la velocidad de giro es claramente no
+lineal (Figura \@ref(fig:fig-power-rpm)): la potencia es nula o muy baja por
+debajo de un umbral de velocidad de giro y crece de forma convexa a partir de
+él. La correlación de Spearman con la potencia de salida es `r rho_of("rpm")`
+para la velocidad de giro, `r rho_of("windspeed_ref_ms")` para la velocidad de
+viento de referencia y `r rho_of("voltage_in_v")` para la tensión generada por
+el rotor (`Voltage In`). Estas tres variables están muy correlacionadas entre
+sí (Spearman entre `r fmt_num(rotor_rng[1], 2)` y
+`r fmt_num(rotor_rng[2], 2)`), lo que anticipa multicolinealidad si se incluyen
+juntas. La asociación con la temperatura en la góndola (`T3`) es más débil
+(`r rho_of("temp_nacelle_c")`).
+
+```{r fig-power-rpm, fig.show="hold", out.width="49.5%", fig.width=3.16, fig.height=2.55, fig.cap=sprintf("Potencia de salida frente a la velocidad de giro (izquierda; registros por celda en escala logarítmica) y frente a la velocidad de viento de referencia, derivada de las RPM (derecha; rombo: media; los niveles extremos tienen pocos registros). Línea discontinua: potencia nominal (%s W). Ambos paneles comparten la escala vertical.", fmt_int(rated))}
+plot_power_vs_continuous(data, "rpm", response, ylim = y_lim, reference = rated)
+plot_power_by_level(data, "windspeed_ref_ms", response, ylim = y_lim,
+                    reference = rated)
+```
+
+## Estados operativos
+
+El diccionario define el estado de la turbina (`Turbine status`), de la red
+(`Grid status`) y del sistema (`System status`) como códigos, pero no
+documenta su significado, de modo que no puede afirmarse qué códigos
+corresponden a un funcionamiento normal. Empíricamente
+(Tabla \@ref(tab:tab-status)), el código `r top_prod$code` reúne el
+`r fmt_num(top_prod$pct)` % de los registros y en él la potencia es positiva en
+el `r fmt_num(top_prod$pct_producing)` % de los casos; en otros códigos
+frecuentes es nula. Los estados son, por tanto, una vía posible para definir la
+población operacional (D-M3, D-M6), pero exigirían una justificación externa al
+diccionario.
+
+```{r tab-status}
+table_status_distribution(status, "Turbine status", top = 6)
+```
+
+## Evolución temporal y dependencia
+
+La mediana del intervalo entre registros es de
+`r fmt_num(median(checks$sampling$median_s), 1)` s y la cobertura varía mucho
+entre meses (Figura \@ref(fig:fig-monthly)). La serie de medias horarias de la
+potencia de salida presenta una autocorrelación de `r acf_at(1)` a un retardo
+de una hora y un máximo local de `r acf_at(24)` a las 24 horas
+(Figura \@ref(fig:fig-acf)), un patrón compatible con una componente o
+periodicidad diaria. Las observaciones próximas en el tiempo no son, por
+tanto, independientes, lo que afecta a la hipótesis de independencia del
+modelo y, después, a la validez de los errores estándar y los contrastes
+(decisión D-M5). Esta cuestión no se resuelve en esta fase.
+
+```{r fig-monthly, fig.height=2.15, fig.cap="Potencia de salida media y cobertura de registros por mes (cobertura: registros respecto a uno por minuto). El primer y el último mes pueden estar incompletos."}
+plot_monthly_series(summarise_monthly(data, response))
+```
+
+```{r fig-acf, fig.height=1.6, fig.cap="Autocorrelación de la serie de medias horarias de la potencia de salida. Las horas sin registros se tratan como datos perdidos. Banda gris: límites aproximados al 95 \\% bajo independencia."}
+plot_acf(acf_h, "horas")
+```
+
+## Implicaciones para la modelización
+
+El análisis exploratorio entrega a las fases siguientes estas cuestiones, sin
+resolverlas:
+
+* **Población de análisis (D-M6):** la proporción de ceros obliga a decidir qué
+  potencia se modeliza antes de especificar el modelo.
+* **Forma funcional y colinealidad (D-M7):** la relación con la velocidad de
+  giro es no lineal, y `RPM`, `Windspeed (ref)` y `Voltage In` son casi
+  redundantes.
+* **Estados operativos (D-M3):** separan los registros con y sin producción,
+  pero su significado no está documentado.
+* **Dependencia temporal y huecos (D-M4, D-M5):** condicionan la inferencia y
+  el diagnóstico de independencia de los residuos.
+* **Valores pendientes de interpretación (R1, R2):** registros por encima de la
+  potencia nominal y discrepancias aisladas entre `Power out` y `Power reg`,
+  que conviene revisar en el análisis de observaciones influyentes.
+
+# Modelo estadístico {#modelo}
+
+\pendiente{Álvaro}{Formulación matemática del modelo elegido y sus hipótesis.
+Debe tener en cuenta las decisiones D-M1 a D-M7 de
+\texttt{docs/decisions.md} y las conclusiones del análisis exploratorio
+(ceros, no linealidad, colinealidad, dependencia temporal).}
+
+<!-- Plantilla de notación (Tema 6 de la asignatura). Sustituir por el modelo
+     concreto; no representa ninguna decisión tomada.
+
+\begin{equation}
+  Y_i = \beta_0 + \beta_1 x_{i1} + \cdots + \beta_k x_{ik} + \varepsilon_i,
+  \qquad \varepsilon_i \sim N(0, \sigma^2) \text{ independientes},
+  \quad i = 1, \dots, n.
+  (\#eq:modelo)
+\end{equation}
+
+donde $Y_i$ es ... y $x_{ij}$ ...
+-->
+
+# Análisis estadístico {#analisis}
+
+## Ajuste del modelo e interpretación de los parámetros
+
+\pendiente{Álvaro}{Ecuación del modelo ajustado e interpretación de los
+coeficientes en las unidades originales (\texttt{fit\_main\_model()},
+\texttt{extract\_coefficients()}).}
+
+```{r model-fit, eval=FALSE}
+analysis_data <- load_analysis_data("final", config)
+model <- fit_main_model(analysis_data, formula = NULL)
+extract_coefficients(model)
+```
+
+## Bondad de ajuste
+
+\pendiente{Álvaro}{$R^2$, $R^2$ ajustado o devianza, según el modelo
+(\texttt{model\_summary()}).}
+
+## Inferencia y cuantificación de la incertidumbre
+
+\pendiente{Álvaro}{Contrastes de significación e intervalos de confianza
+(\texttt{confidence\_intervals()}). Discutir el efecto de la dependencia
+temporal sobre los errores estándar.}
+
+## Diagnóstico del modelo
+
+\pendiente{Daniel}{Residuos: linealidad, homocedasticidad, normalidad e
+independencia (\texttt{diagnose\_residuals()},
+\texttt{check\_autocorrelation()}, \texttt{check\_multicollinearity()}).}
+
+## Observaciones anómalas e influyentes
+
+\pendiente{Daniel}{Identificación y tratamiento justificado
+(\texttt{check\_influential\_observations()}). Cualquier exclusión se
+documenta en \texttt{docs/decisions.md}.}
+
+## Simplificación del modelo
+
+\pendiente{Daniel}{Comparación de modelos y selección automática de
+variables (\texttt{compare\_models()}, \texttt{select\_model()}).}
+
+# Conclusiones {#conclusiones}
+
+\pendiente{Daniel}{Resumen de resultados, limitaciones (incluidas las
+recogidas en \texttt{docs/methodology\_notes.md}) y posibles extensiones,
+con referencias. Revisión final del grupo.}
+
+# Referencias {-}
+
+<div id="refs"></div>

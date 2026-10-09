@@ -1,0 +1,62 @@
+# =============================================================================
+# Configuración central del proyecto
+# -----------------------------------------------------------------------------
+# Todas las rutas son RELATIVAS a la raíz del proyecto (se resuelven con here()).
+# Cualquier parámetro que implique una decisión metodológica está agrupado en
+# la sección `analysis` y marcado con su estado (PROVISIONAL / PENDIENTE).
+# Cambiar un valor aquí debe ir acompañado de una entrada en docs/decisions.md.
+# =============================================================================
+
+paths:
+  raw_dir: data/raw
+  processed_dir: data/processed
+  final_dir: data/final
+  figures_dir: outputs/figures
+  tables_dir: outputs/tables
+  models_dir: outputs/models
+  report_output_dir: reports/output
+
+# Formato de los ficheros originales (data_description.txt)
+raw_format:
+  file_pattern: "^data_swt_iee_usp_(\\d{4})\\.csv$"
+  delimiter: ";"
+  decimal_mark: "."
+  expected_years: [2017, 2018, 2019, 2020, 2021, 2022]
+
+# Ficheros intermedios generados por scripts/01_build_dataset.R
+outputs:
+  processed_file: swt_scada_clean.rds        # solo correcciones técnicas
+  final_file: swt_analysis_dataset.rds       # tras filtros metodológicos (D-M*)
+
+validation:
+  # Umbral para marcar una variable como "casi constante":
+  # proporción del valor más frecuente >= umbral.
+  near_constant_threshold: 0.99
+  # Un intervalo entre registros mayor que este valor (en segundos) se
+  # considera hueco temporal. 1 registro/minuto según el diccionario;
+  # se deja margen para la variabilidad observada del muestreo (~58-62 s).
+  gap_threshold_seconds: 180
+
+# Valores de referencia EXTERNOS al diccionario de datos (con su fuente)
+reference:
+  # Potencia nominal de la turbina Skystream 3.7: 1,8 kW según la ficha del
+  # conjunto en Zenodo y Bassi et al. (2023), Data 8(3):52. Se usa SOLO como
+  # umbral descriptivo para inspeccionar registros; no es un filtro.
+  rated_power_w: 1800
+
+# Semilla común para cualquier paso aleatorio (validación cruzada,
+# submuestreo, bootstrap...). El EDA actual es determinista y no la usa.
+seed: 20261006
+
+analysis:
+  # PROVISIONAL (D-M1): variable respuesta. Según el diccionario hay dos
+  # candidatas: "Power out" (potencia de salida del inversor, W) y
+  # "Power reg" (potencia procedente del generador, W). Pendiente de
+  # confirmación por el grupo.
+  response: power_out_w
+  # PENDIENTE (D-M2..D-M5): filtros metodológicos. Valores por defecto = no
+  # filtrar nada. Ver docs/decisions.md.
+  period_start: null        # p. ej. "2018-01-01"
+  period_end: null          # p. ej. "2022-12-31"
+  turbine_status_keep: null # p. ej. [1, 3]  (sin documentación que lo avale)
+  aggregation: none         # none | 10min | hour (pendiente)

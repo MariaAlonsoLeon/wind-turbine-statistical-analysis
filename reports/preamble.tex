@@ -1,0 +1,45 @@
+% =============================================================================
+% Preámbulo LaTeX del informe (se incluye desde actividad1.Rmd)
+% =============================================================================
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{booktabs}
+\usepackage{float}
+% Las figuras flotan (!htb) pero nunca cruzan el inicio de una sección
+\usepackage[section]{placeins}
+\usepackage{caption}
+\captionsetup{font=small, labelfont=bf, labelsep=period}
+\usepackage{xcolor}
+\definecolor{acento}{HTML}{1F4E79}
+\definecolor{pendiente}{HTML}{8C2D04}
+
+% Notas al pie de tabla (kableExtra::footnote con threeparttable)
+\usepackage{threeparttable}
+
+% "Tabla" en lugar de "Cuadro" (babel spanish)
+\AtBeginDocument{\renewcommand{\tablename}{Tabla}%
+                 \renewcommand{\listtablename}{Índice de tablas}}
+
+% Evitar viudas y huérfanas
+\widowpenalty=10000
+\clubpenalty=10000
+\raggedbottom
+
+% Párrafos con separación y sin sangría
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.55em}
+
+% Cabecera y pie discretos
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.3pt}
+\fancyhead[L]{\small\textcolor{acento}{Actividad 1 · Análisis y modelización con R}}
+\fancyhead[R]{\small\nouppercase{\leftmark}}
+\fancyfoot[C]{\small\thepage}
+
+% Caja visible para las partes pendientes (eliminar al completar)
+\newcommand{\pendiente}[2]{%
+  \par\noindent\fcolorbox{pendiente}{pendiente!6}{%
+    \parbox{\dimexpr\linewidth-2\fboxsep-2\fboxrule}{%
+      \small\raggedright\textcolor{pendiente}{\textbf{TODO [#1]}}\enspace #2}}\par}
