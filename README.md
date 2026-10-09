@@ -3,7 +3,7 @@
 Actividad 1 de **Entornos de Computación Estadística** — Máster en
 Estadística Aplicada, Universidad de Granada (curso 2026-27).
 
-**Autores:** María [Apellidos] · Álvaro [Apellidos] · Daniel [Apellidos]
+**Autores:** María Alonso León · Álvaro [Apellidos] · Daniel [Apellidos]
 
 ## Objetivo
 
@@ -159,7 +159,7 @@ antes de la entrega.
 
 | Parte | Responsable | Estado |
 |---|---|---|
-| Datos, calidad, EDA, secciones 1 (contexto), 2 y 3 | María | ✅ implementado (verificado con 2017) |
-| Pregunta de investigación y filtros (D-M1…D-M8) | Grupo | ⏳ pendiente |
-| Modelo, ajuste, inferencia (secciones 4, 5.1–5.3) | Álvaro | ⏳ interfaz preparada |
-| Diagnóstico, influyentes, selección, conclusiones | Daniel | ⏳ interfaz preparada |
+| Datos, calidad, EDA, secciones 1 (contexto), 2 y 3 | María | implementado (verificado con 2017) |
+| Pregunta de investigación y filtros (D-M1…D-M8) | Grupo | pendiente |
+| Modelo, ajuste, inferencia (secciones 4, 5.1–5.3) | Álvaro | interfaz preparada |
+| Diagnóstico, influyentes, selección, conclusiones | Daniel | interfaz preparada |
