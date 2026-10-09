@@ -3,7 +3,7 @@
 Actividad 1 de **Entornos de Computación Estadística** — Máster en
 Estadística Aplicada, Universidad de Granada (curso 2026-27).
 
-**Autores:** María Alonso León · Álvaro [Apellidos] · Daniel [Apellidos]
+**Autores:** Álvaro Rodriguez Gallardo · Daniel Viegas Alonso · María Alonso León 
 
 ## Objetivo
 
