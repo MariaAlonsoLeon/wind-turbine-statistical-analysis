@@ -1,21 +1,10 @@
 # =============================================================================
 # 11_plots.R — Tema visual, paleta y gráficos del informe
 # -----------------------------------------------------------------------------
-# Responsable: María. Álvaro y Daniel: usad SIEMPRE theme_wind_report() y
-# wind_palette() en vuestros gráficos (diagnóstico, efectos, etc.) y añadid
-# las funciones al final de este fichero.
-#
-# Convenciones (válidas para todo el proyecto):
-#   * Cada función devuelve un objeto ggplot; no guarda nada (save_figure()).
-#   * SIN título ni pie dentro del gráfico: los gestiona knitr (fig.cap).
-#   * Figuras insertadas a su tamaño real en el PDF (fig.width = ancho final),
-#     para que el texto se imprima al tamaño definido aquí.
-#   * Máximo tres colores funcionales (wind_palette()). Las magnitudes usan una
-#     sola tonalidad de claro a oscuro; nunca paletas arcoíris.
+# Responsable: María. Álvaro y Daniel.
 # =============================================================================
 
 #' Paleta del proyecto: tres colores funcionales
-#'
 #' * primary   (#1F4E79, azul oscuro): dato principal.
 #' * secondary (#E69F00, ámbar): referencia o elemento destacado. Poco
 #'   contraste sobre blanco: usar solo en marcas gruesas o discontinuas y
@@ -30,7 +19,6 @@ wind_palette <- function() {
 }
 
 #' Tema gráfico estándar del proyecto
-#'
 #' Fondo blanco, ejes visibles, retícula principal tenue y sin secundaria,
 #' tipografía sans serif a `base_size` pt, leyenda discreta y márgenes
 #' uniformes. Sin títulos ni pies dentro del gráfico.
@@ -82,7 +70,6 @@ var_label <- function(name, schema = scada_schema()) {
 }
 
 #' Leyenda dentro del panel, compatible con ggplot2 3.4 y >= 3.5
-#'
 #' @param x,y Posición relativa (0-1) de la esquina indicada en `just`.
 legend_inside <- function(x, y, just = c(0, 1)) {
   if (utils::packageVersion("ggplot2") >= "3.5.0") {
@@ -113,10 +100,9 @@ reference_line <- function(value, axis = c("y", "x")) {
 # -----------------------------------------------------------------------------
 
 #' Distribución de la potencia en los registros con potencia positiva
-#'
 #' Eje y en % de los registros con potencia positiva (independiente del
 #' tamaño muestral). Los registros con potencia nula se excluyen para que la
-#' forma sea visible; su porcentaje debe indicarse en el caption.
+#' forma sea visible. Su porcentaje debe indicarse en el caption.
 #'
 #' @param reference Valor de referencia opcional (p. ej. potencia nominal).
 plot_power_distribution <- function(data, response = "power_out_w",
@@ -139,7 +125,6 @@ plot_power_distribution <- function(data, response = "power_out_w",
 }
 
 #' Curva de potencia empírica frente a un predictor discreto (cajas)
-#'
 #' @param ylim Límites comunes del eje y (para alinear con otro panel).
 #' @param show_n Añade el nº de registros bajo cada nivel.
 plot_power_by_level <- function(data, predictor = "windspeed_ref_ms",
@@ -167,7 +152,6 @@ plot_power_by_level <- function(data, predictor = "windspeed_ref_ms",
 }
 
 #' Respuesta frente a un predictor continuo (histograma bidimensional)
-#'
 #' Con cientos de miles de puntos un diagrama de dispersión se satura; se
 #' representa el nº de registros por celda en escala logarítmica, con una
 #' sola tonalidad (gris claro -> azul oscuro). La leyenda va dentro del panel,
@@ -208,11 +192,9 @@ plot_power_vs_continuous <- function(data, predictor = "rpm",
 }
 
 #' Serie mensual: potencia media y cobertura de registros (dos paneles)
-#'
 #' Los nombres de los paneles actúan como títulos del eje y (a la izquierda),
 #' de modo que el caption no necesita repetirlos. Los meses sin registros
 #' quedan sin barra en la potencia y a 0 en la cobertura.
-#'
 #' @param bar_width Anchura de las barras en días (24 para meses).
 plot_monthly_series <- function(monthly, bar_width = 24) {
   pal <- wind_palette()
@@ -359,4 +341,88 @@ plot_diurnal_profile <- function(profile) {
     ggplot2::scale_y_continuous(labels = axis_es()) +
     ggplot2::labs(x = "Hora local", y = "Potencia media (W)") +
     theme_wind_report()
+}
+
+# -----------------------------------------------------------------------------
+# Figuras del modelo (Álvaro)
+# -----------------------------------------------------------------------------
+
+#' Curva de potencia ajustada sobre los datos del modelo
+#' Datos (intervalos de 10 min) en gris como contexto. Ajuste en azul con su
+#' banda de confianza (sombreada, muy estrecha) y de predicción (discontinua),
+#' en W. Es la figura de bandas del ejemplo de Forbes (Tema 6) con el estilo
+#' del proyecto.
+#'
+#' @param grid power_curve_grid() (07_inference.R).
+plot_power_curve_fit <- function(data, grid, response = "power_out_w",
+                                 bins = 60) {
+  pal <- wind_palette()
+  d <- data.frame(x = data$rpm, y = data[[response]])
+  ggplot2::ggplot() +
+    ggplot2::geom_bin2d(data = d, ggplot2::aes(x, y), bins = bins) +
+    ggplot2::scale_fill_gradient(low = pal[["neutral_light"]],
+                                 high = pal[["neutral"]], trans = "log10",
+                                 labels = axis_es(), name = "Intervalos",
+                                 breaks = function(lim) {
+                                   10^seq(0, floor(log10(lim[2])), by = 1)
+                                 }) +
+    ggplot2::geom_ribbon(data = grid,
+                         ggplot2::aes(rpm, ymin = conf_lower_w,
+                                      ymax = conf_upper_w),
+                         fill = pal[["primary"]], alpha = 0.35) +
+    ggplot2::geom_line(data = grid, ggplot2::aes(rpm, pred_lower_w),
+                       colour = pal[["primary"]], linetype = "22",
+                       linewidth = 0.5) +
+    ggplot2::geom_line(data = grid, ggplot2::aes(rpm, pred_upper_w),
+                       colour = pal[["primary"]], linetype = "22",
+                       linewidth = 0.5) +
+    ggplot2::geom_line(data = grid, ggplot2::aes(rpm, fit_w),
+                       colour = pal[["primary"]], linewidth = 0.8) +
+    ggplot2::scale_x_continuous(labels = axis_es()) +
+    ggplot2::scale_y_continuous(labels = axis_es()) +
+    ggplot2::labs(x = var_label("rpm"), y = var_label(response)) +
+    theme_wind_report() +
+    legend_inside(0.03, 0.98) +
+    ggplot2::theme(
+      legend.direction = "horizontal",
+      legend.background = ggplot2::element_blank(),
+      legend.key.width = ggplot2::unit(0.6, "cm"),
+      legend.key.height = ggplot2::unit(0.2, "cm")
+    ) +
+    ggplot2::guides(fill = ggplot2::guide_colourbar(title.position = "top"))
+}
+
+#' Elasticidad estimada de la potencia respecto a las RPM
+#' @param elast elasticity_curve(), value: referencia (3 = ley cúbica).
+plot_elasticity_curve <- function(elast, value = 3) {
+  pal <- wind_palette()
+  ggplot2::ggplot(elast, ggplot2::aes(rpm, elasticity)) +
+    ggplot2::geom_ribbon(ggplot2::aes(ymin = lower, ymax = upper),
+                         fill = pal[["neutral_light"]]) +
+    reference_line(value, "y") +
+    ggplot2::geom_line(colour = pal[["primary"]], linewidth = 0.8) +
+    ggplot2::scale_x_continuous(labels = axis_es()) +
+    ggplot2::scale_y_continuous(labels = axis_es(accuracy = 1)) +
+    ggplot2::labs(x = var_label("rpm"),
+                  y = "Elasticidad de la potencia") +
+    theme_wind_report()
+}
+
+#' Probabilidad estimada de producción por franja del día y estación
+#' @param profile production_profile() (07_inference.R).
+plot_production_profile <- function(profile) {
+  pal <- wind_palette()
+  ggplot2::ggplot(profile, ggplot2::aes(day_period, fit)) +
+    ggplot2::geom_errorbar(ggplot2::aes(ymin = lower, ymax = upper),
+                           width = 0.25, colour = pal[["neutral"]],
+                           linewidth = 0.4) +
+    ggplot2::geom_point(colour = pal[["primary"]], size = 1.6) +
+    ggplot2::facet_wrap(~season, nrow = 1) +
+    ggplot2::scale_y_continuous(labels = scales::label_percent(
+      decimal.mark = ","), limits = c(0, NA)) +
+    ggplot2::labs(x = "Franja del día (hora local)",
+                  y = "Prob. de producción") +
+    theme_wind_report() +
+    ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 30,
+                                                       hjust = 1))
 }

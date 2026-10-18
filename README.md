@@ -46,8 +46,8 @@ wind-turbine-statistical-analysis/
 │   ├── 03_validation.R              Calidad de datos (identifica, no elimina)
 │   ├── 04_features.R                Variables derivadas
 │   ├── 05_eda.R                     Cálculos exploratorios
-│   ├── 06_modeling.R                [Álvaro] ajuste            (interfaz pendiente)
-│   ├── 07_inference.R               [Álvaro] inferencia        (interfaz pendiente)
+│   ├── 06_modeling.R                [Álvaro] datos del modelo y ajuste (implementado)
+│   ├── 07_inference.R               [Álvaro] inferencia        (implementado)
 │   ├── 08_diagnostics.R             [Daniel] diagnóstico       (interfaz pendiente)
 │   ├── 09_model_selection.R         [Daniel] selección         (interfaz pendiente)
 │   ├── 10_tables.R                  Tablas formateadas para el informe
@@ -56,7 +56,7 @@ wind-turbine-statistical-analysis/
 │   ├── 00_setup.R                   Comprueba entorno y datos
 │   ├── 01_build_dataset.R           raw -> processed / final + informe de calidad
 │   ├── 02_run_eda.R                 Todas las tablas y figuras exploratorias
-│   ├── 03_fit_models.R              [Álvaro/Daniel] modelos (esqueleto)
+│   ├── 03_fit_models.R              [Álvaro/Daniel] modelos (pasos 1-2 implementados)
 │   └── 99_render_report.R           Genera el PDF
 ├── reports/
 │   ├── actividad1.Rmd               INFORME: narrativa + llamadas a funciones
@@ -111,7 +111,7 @@ Desde la raíz del proyecto, en una sesión limpia de R:
 ```r
 source("scripts/01_build_dataset.R")   # datos procesados + informe de calidad (~1-2 min)
 source("scripts/02_run_eda.R")         # tablas y figuras exploratorias en outputs/ (~3 min)
-source("scripts/03_fit_models.R")      # modelos (pendiente: Álvaro / Daniel)
+source("scripts/03_fit_models.R")      # modelos e inferencia (~30 s; diagnóstico y selección: Daniel)
 source("scripts/99_render_report.R")   # reports/output/actividad1.pdf
 ```
 
@@ -160,6 +160,6 @@ antes de la entrega.
 | Parte | Responsable | Estado |
 |---|---|---|
 | Datos, calidad, EDA, secciones 1 (contexto), 2 y 3 | María | implementado (verificado con 2017) |
-| Pregunta de investigación y filtros (D-M1…D-M8) | Grupo | pendiente |
-| Modelo, ajuste, inferencia (secciones 4, 5.1–5.3) | Álvaro | interfaz preparada |
+| Pregunta de investigación y filtros (D-M1…D-M8) | Grupo | propuesta aplicada (Álvaro); pendiente de confirmar |
+| Modelo, ajuste, inferencia (secciones 4, 5.1–5.3) | Álvaro | implementado (tests de modelo en tests/testthat/test-modeling-*.R) |
 | Diagnóstico, influyentes, selección, conclusiones | Daniel | interfaz preparada |

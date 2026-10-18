@@ -265,3 +265,113 @@ table_missing <- function(missing) {
                         "%" = fmt_num(missing$pct_missing, 2))
   style_report_table(out, caption = "Variables con valores perdidos.")
 }
+
+# -----------------------------------------------------------------------------
+# Tablas del modelo (Álvaro)
+# -----------------------------------------------------------------------------
+
+#' p-valor en formato español ("< 0,001" por debajo de 0,001)
+fmt_p <- function(p) {
+  ifelse(is.na(p), "--", ifelse(p < 0.001, "< 0,001", fmt_num(p, 3)))
+}
+
+#' Etiqueta legible de un término del modelo
+term_label <- function(term, reference_rpm = 140, reference_year = 2018) {
+  lab <- term
+  lab[term == "(Intercept)"] <- "Constante"
+  lab[term == "log_rpm_c"] <- paste0("log(RPM/", reference_rpm, ")")
+  lab[term == "I(log_rpm_c^2)"] <- paste0("log(RPM/", reference_rpm, ")^2")
+  lab[term == "log_rpm"] <- "log(RPM)"
+  lab[term == "temp_nacelle_c"] <- "Temperatura en la góndola (ºC)"
+  yr <- grepl("^year_f.", term)
+  lab[yr] <- paste0("Año ", sub("^year_f", "", term[yr]), " (vs ",
+                    reference_year, ")")
+  dp <- grepl("^day_period.", term)
+  lab[dp] <- paste0("Franja ", sub("^day_period", "", term[dp]), " (vs 0-6 h)")
+  se <- grepl("^season.", term)
+  lab[se] <- paste0(sub("^season", "", term[se]), " (vs verano)")
+  lab[term == "year_f"] <- "Año"
+  lab[term == "day_period"] <- "Franja del día"
+  lab[term == "season"] <- "Estación"
+  lab
+}
+
+#' Coeficientes del modelo lineal con su efecto en escala original
+#'
+#' @param coefs extract_coefficients(); effects: interpret_effects().
+table_model_coefficients <- function(coefs, effects, caption, note = NULL) {
+  d <- dplyr::left_join(coefs, effects, by = "term")
+  effect_txt <- ifelse(
+    is.na(d$scale) | d$scale == "elasticidad", "--",
+    paste0(fmt_num(d$effect, 1), " [", fmt_num(d$lower, 1), "; ",
+           fmt_num(d$upper, 1), "]"))
+  out <- tibble::tibble(
+    "Término" = term_label(d$term),
+    "Estimación" = fmt_num(d$estimate, 4),
+    "Error est." = fmt_num(d$std_error, 4),
+    "t" = fmt_num(d$statistic, 1),
+    "p-valor" = fmt_p(d$p_value),
+    "Efecto sobre P (%) [IC 95 %]" = effect_txt
+  )
+  style_report_table(out, caption = caption, note = note,
+                     align = c("l", "r", "r", "r", "r", "r"))
+}
+
+#' Bondad de ajuste de una secuencia de modelos lineales anidados
+#'
+#' @param summaries Lista nombrada de model_summary().
+#' @param added Vector nombrado: término(s) que añade cada modelo.
+table_model_fit <- function(summaries, added, caption, note = NULL) {
+  s <- dplyr::bind_rows(summaries, .id = "model")
+  out <- tibble::tibble(
+    Modelo = s$model,
+    "Términos añadidos" = unname(added[s$model]),
+    "Parámetros" = fmt_int(s$n_params),
+    "R2" = fmt_num(s$r_squared, 4),
+    "R2 ajustado" = fmt_num(s$adj_r_squared, 4),
+    "Error est. residual" = fmt_num(s$sigma, 4)
+  )
+  style_report_table(out, caption = caption, note = note,
+                     align = c("l", "l", "r", "r", "r", "r"))
+}
+
+#' Análisis de sensibilidad: coeficientes en distintas muestras
+#'
+#' Cada celda: estimación (error estándar); se marca con (ns) si p >= 0,05.
+#' @param cmp compare_fits_across_samples().
+#' @param terms Términos a mostrar (por defecto, todos salvo la constante).
+table_sensitivity <- function(cmp, caption, note = NULL, terms = NULL) {
+  if (is.null(terms)) terms <- unique(cmp$term[cmp$term != "(Intercept)"])
+  cmp <- cmp[cmp$term %in% terms, ]
+  cell <- paste0(fmt_num(cmp$estimate, 4), " (", fmt_num(cmp$std_error, 4),
+                 ")", ifelse(cmp$p_value >= 0.05, " (ns)", ""))
+  samples <- levels(cmp$sample)
+  out <- tibble::tibble("Término" = term_label(terms))
+  for (s in samples) {
+    i <- cmp$sample == s
+    n <- unique(cmp$n[i])
+    out[[paste0(s, " (n = ", fmt_int(n), ")")]] <-
+      cell[i][match(terms, cmp$term[i])]
+  }
+  # Letra algo menor: cuatro columnas de estimaciones a ancho de texto
+  style_report_table(out, caption = caption, note = note,
+                     align = c("l", rep("r", length(samples))),
+                     font_size = 7)
+}
+
+#' Razones de odds del modelo logístico
+#'
+#' @param coefs extract_coefficients(); effects: interpret_effects().
+table_odds_ratios <- function(coefs, effects, caption, note = NULL) {
+  d <- dplyr::left_join(effects, coefs, by = "term")
+  out <- tibble::tibble(
+    "Término" = term_label(d$term),
+    "Coeficiente" = fmt_num(d$estimate, 3),
+    "Odds ratio" = fmt_num(d$effect, 2),
+    "IC 95 %" = paste0("[", fmt_num(d$lower, 2), "; ", fmt_num(d$upper, 2),
+                       "]"),
+    "p-valor" = fmt_p(d$p_value)
+  )
+  style_report_table(out, caption = caption, note = note,
+                     align = c("l", "r", "r", "r", "r"))
+}
