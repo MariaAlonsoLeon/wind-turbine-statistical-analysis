@@ -375,3 +375,34 @@ table_odds_ratios <- function(coefs, effects, caption, note = NULL) {
   style_report_table(out, caption = caption, note = note,
                      align = c("l", "r", "r", "r", "r"))
 }
+
+# -----------------------------------------------------------------------------
+# Tablas de diagnóstico y selección de modelos (Daniel)
+# -----------------------------------------------------------------------------
+
+#' Tabla de factores de inflación de la varianza (VIF)
+table_vif <- function(vif_tbl, caption, note = NULL) {
+  out <- tibble::tibble(
+    "Término" = term_label(vif_tbl$Termino),
+    "VIF" = fmt_num(vif_tbl$VIF, 2),
+    "Tolerancia (1/VIF)" = fmt_num(1 / vif_tbl$VIF, 2)
+  )
+  style_report_table(out, caption = caption, note = note,
+                     align = c("l", "r", "r"))
+}
+
+#' Tabla de comparación y selección de modelos candidatos anidados
+table_model_comparison <- function(comp_tbl, added, caption, note = NULL) {
+  out <- tibble::tibble(
+    Modelo = comp_tbl$Modelo,
+    "Términos añadidos" = unname(added[comp_tbl$Modelo]),
+    "Parámetros" = fmt_int(comp_tbl$Parametros),
+    "R2 ajustado" = fmt_num(comp_tbl$R2_ajustado, 4),
+    "AIC" = fmt_num(comp_tbl$AIC, 1),
+    "BIC" = fmt_num(comp_tbl$BIC, 1),
+    "p-valor F" = fmt_p(comp_tbl$p_valor_anova)
+  )
+  style_report_table(out, caption = caption, note = note,
+                     align = c("l", "l", "r", "r", "r", "r", "r"),
+                     font_size = 8)
+}

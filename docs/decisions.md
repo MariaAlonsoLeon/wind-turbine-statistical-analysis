@@ -157,24 +157,18 @@ Propuesta aplicada por Álvaro (11/10/2026) para poder ajustar el modelo,
 
 ---
 
-## Cuestiones pendientes de interpretación (no son decisiones aún)
 
-### R1 · Registros con potencia superior a la nominal — ⏳
-* Con 2017–2022 el máximo de `Power out` es 3.713 W, frente a 1.800 W
-  nominales (dato de los autores) y a 2.400 W de `Power max` ("Inverter
-  maximum power production" según el diccionario).
-* La documentación proporcionada (diccionario y enunciado) **no explica**
-  estos valores. No se eliminan ni se interpretan como error.
-* Detalle reproducible (`high_power_check()`, ficheros
-  `outputs/tables/response_high_power_*.csv`): nº de registros, episodios y
-  su duración, años y meses, estados asociados, perfil de RPM y otras
-  variables frente a registros con producción normal, y registros por encima
-  de `Power max`.
-* Entrada para Daniel: revisar si estos registros son influyentes en el
-  modelo antes de cualquier decisión.
+## Decisiones tras el diagnóstico y selección (Daniel)
 
-### R2 · Discrepancias Power out − Power reg — ⏳
-* Ver D-M1 y `outputs/tables/response_out_vs_reg_*.csv`.
+### D-D1 · Tratamiento de observaciones atípicas e influyentes (R1, R2) — ✅ Daniel
+- Tras agregar los datos en intervalos de 10 minutos de producción sostenida, **ningún intervalo supera los 1.800 W** (el máximo es muy inferior) y los picos puntuales quedan amortiguados.
+- La máxima distancia de Cook observada en toda la muestra es $D_i = 0,0044 \ll 0,5$. Ninguna observación ejerce una influencia determinante.
+- Decisión: **no se excluye ningún registro** de la muestra condicional agregada, resolviendo definitivamente las cuestiones pendientes R1 y R2 sin pérdida de datos.
+
+### D-D2 · Simplificación del modelo — ✅ Daniel
+- Se evalúan los modelos anidados `a1`--`a4` (`R/09_model_selection.R`).
+- Decisión: **se mantiene el modelo completo `a4`** como marco inferencial principal para responder directamente a la pregunta de investigación sobre temperatura y época del año.
+- No obstante, queda formalmente documentado que bajo el criterio BIC ($k = \log n$) y en submuestras espaciadas libres de autocorrelación, el modelo parsimonioso óptimo es `a2` (velocidad de giro con término cuadrático).
 
 ---
 
@@ -187,3 +181,4 @@ Propuesta aplicada por Álvaro (11/10/2026) para poder ajustar el modelo,
 | I10–I11, D-M1, D-M6 | Revisión final: estilo único, Pearson y Spearman etiquetados, distribución marginal frente a condicional | María |
 | I7–I9, D-M1, D-M6, R1, R2 | Segunda revisión: definición y verificación de huecos, comprobaciones de la respuesta, población de análisis como decisión central | María |
 | D-M1–D-M8 | Propuesta aplicada para el modelo: periodo 2018–2022, sin filtro de estados, intervalos de 10 min de producción sostenida, modelo en dos partes, log-log con término cuadrático, sensibilidad con submuestra espaciada | Álvaro |
+| D-D1, D-D2 | Diagnóstico y simplificación: confirmación de robustez sin exclusión de atípicos (R1, R2 resueltos) e identificación de `a2` como modelo parsimonioso bajo BIC | Daniel |

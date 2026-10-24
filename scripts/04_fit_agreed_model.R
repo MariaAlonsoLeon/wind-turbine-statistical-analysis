@@ -77,4 +77,19 @@ save_figure(plot_elasticity_curve(elasticity_curve(
 save_figure(plot_season_profile(season_profile(model, d, settings = settings)),
             "agreed_season_profile", width = 4, height = 2.6)
 
+# --- 5. Diagnóstico y Selección del Modelo Acordado (Daniel) ------------------
+log_step("Diagnóstico y Selección")
+diag_agreed <- diagnose_residuals(model)
+inf_agreed  <- check_influential_observations(model, d)
+vif_agreed  <- check_multicollinearity(model)
+aut_agreed  <- check_autocorrelation(model, d)
+comp_agreed <- compare_models(results$candidates)
+
+save_figure(diag_agreed$plots$residuals_vs_fitted, "agreed_diagnostics_resid")
+save_figure(diag_agreed$plots$qq_plot, "agreed_diagnostics_qq")
+save_figure(aut_agreed$plot_time, "agreed_diagnostics_autocorr")
+save_table(vif_agreed, "agreed_diagnostics_vif")
+save_table(aut_agreed$test, "agreed_diagnostics_dw")
+save_table(comp_agreed, "agreed_selection_comparison")
+
 log_step("Modelo acordado completado.")

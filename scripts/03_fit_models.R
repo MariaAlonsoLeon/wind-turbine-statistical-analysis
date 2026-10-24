@@ -2,7 +2,7 @@
 # 03_fit_models.R — Ajuste, inferencia, diagnóstico y selección
 # -----------------------------------------------------------------------------
 # Responsables: Álvaro (pasos 1-2) y Daniel (pasos 3-4)
-# ESTADO: pasos 1-2 implementados; pasos 3-4 pendientes (descomentar cada
+# ESTADO: pasos implementados; (descomentar cada
 # paso a medida que se implemente).
 #
 # Entradas : data/final/swt_analysis_dataset.rds
@@ -71,15 +71,24 @@ save_figure(plot_production_profile(production_profile(results$production,
             "model_production_profile")
 
 # --- 3. Diagnóstico (Daniel) --------------------------------------------------
-# diagnostics <- diagnose_residuals(model)
-# influential <- check_influential_observations(model, cond)
-# vif_table   <- check_multicollinearity(model)
-# autocorr    <- check_autocorrelation(model, cond)
+log_step("Diagnóstico")
+diagnostics <- diagnose_residuals(model)
+influential <- check_influential_observations(model, cond)
+vif_table   <- check_multicollinearity(model)
+autocorr    <- check_autocorrelation(model, cond)
+
+save_figure(diagnostics$plots$residuals_vs_fitted, "model_diagnostics_resid")
+save_figure(diagnostics$plots$qq_plot, "model_diagnostics_qq")
+save_figure(autocorr$plot_time, "model_diagnostics_autocorr")
+save_table(vif_table, "model_diagnostics_vif")
+save_table(autocorr$test, "model_diagnostics_dw")
 
 # --- 4. Selección (Daniel) ----------------------------------------------------
-# models     <- results$candidates      # m1-m5, mismas filas (anidados)
-# comparison <- compare_models(models)
-# selected   <- select_model(model, direction = "both")
-# save_model(selected, "selected_model")
+log_step("Selección")
+models     <- results$candidates
+comparison <- compare_models(models)
+selected   <- select_model(model, direction = "both")
 
-log_step("Modelización (pasos 1-2) completada. Pasos 3-4 pendientes (Daniel).")
+save_table(comparison, "model_selection_comparison")
+save_model(selected, "selected_model")
+log_step("Modelización completada.")

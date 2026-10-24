@@ -48,15 +48,15 @@ wind-turbine-statistical-analysis/
 │   ├── 05_eda.R                     Cálculos exploratorios
 │   ├── 06_modeling.R                [Álvaro] datos del modelo y ajuste (implementado)
 │   ├── 07_inference.R               [Álvaro] inferencia        (implementado)
-│   ├── 08_diagnostics.R             [Daniel] diagnóstico       (interfaz pendiente)
-│   ├── 09_model_selection.R         [Daniel] selección         (interfaz pendiente)
+│   ├── 08_diagnostics.R             [Daniel] diagnóstico       (implementado)
+│   ├── 09_model_selection.R         [Daniel] selección         (implementado)
 │   ├── 10_tables.R                  Tablas formateadas para el informe
 │   └── 11_plots.R                   Gráficos para el informe
 ├── scripts/                         PIPELINES (se ejecutan en orden)
 │   ├── 00_setup.R                   Comprueba entorno y datos
 │   ├── 01_build_dataset.R           raw -> processed / final + informe de calidad
 │   ├── 02_run_eda.R                 Todas las tablas y figuras exploratorias
-│   ├── 03_fit_models.R              [Álvaro/Daniel] modelos (pasos 1-2 implementados)
+│   ├── 03_fit_models.R              [Álvaro/Daniel] modelos (implementado)
 │   └── 99_render_report.R           Genera el PDF
 ├── reports/
 │   ├── actividad1.Rmd               INFORME: narrativa + llamadas a funciones
@@ -160,6 +160,6 @@ antes de la entrega.
 | Parte | Responsable | Estado |
 |---|---|---|
 | Datos, calidad, EDA, secciones 1 (contexto), 2 y 3 | María | implementado (verificado con 2017) |
-| Pregunta de investigación y filtros (D-M1…D-M8) | Grupo | propuesta aplicada (Álvaro); pendiente de confirmar |
+| Pregunta de investigación y filtros (D-M1…D-M8) | Grupo | confirmado y documentado |
 | Modelo, ajuste, inferencia (secciones 4, 5.1–5.3) | Álvaro | implementado (tests de modelo en tests/testthat/test-modeling-*.R) |
-| Diagnóstico, influyentes, selección, conclusiones | Daniel | interfaz preparada |
+| Diagnóstico, influyentes, selección, conclusiones | Daniel | implementado |
