@@ -43,3 +43,9 @@
   \par\noindent\fcolorbox{pendiente}{pendiente!6}{%
     \parbox{\dimexpr\linewidth-2\fboxsep-2\fboxrule}{%
       \small\raggedright\textcolor{pendiente}{\textbf{TODO [#1]}}\enspace #2}}\par}
+
+% Logo de la Universidad en la portada
+\usepackage{graphicx}
+\usepackage{titling}
+\pretitle{\begin{center}\includegraphics[width=6.5cm]{logo_ugr.png}\\[2em]\LARGE}
+\posttitle{\par\end{center}\vskip 0.5em}

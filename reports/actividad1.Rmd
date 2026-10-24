@@ -3,8 +3,8 @@ title: "Producción de una pequeña turbina eólica urbana: análisis y modeliza
 subtitle: "Actividad 1 · Entornos de Computación Estadística · Máster en Estadística Aplicada (Universidad de Granada)"
 author:
   - "María Alonso León"
-  - "Álvaro [Apellidos]"
-  - "Daniel [Apellidos]"
+  - "Álvaro Rodríguez Gallardo"
+  - "Daniel Vangente Viegas Alonso"
 date: "`r source(here::here('R', '00_utils.R')); format_date_es()`"
 lang: es
 documentclass: article
@@ -103,9 +103,7 @@ de formular el modelo el grupo debe decidir **qué población se modeliza**
 (Sección \@ref(poblacion)). Esa elección determina la pregunta de
 investigación y la especificación del modelo.
 
-\pendiente{Grupo}{Formular la pregunta de investigación y los objetivos tras
-decidir la población de análisis (decisión D-M6). Propuestas preliminares en
-docs/methodology\_notes.md.}
+En consonancia con dicha estructura, este trabajo restringe la población de análisis a los intervalos de 10 minutos con producción sostenida durante el periodo 2018--2022 (decisiones D-M2, D-M4 y D-M6) para responder a la siguiente pregunta de investigación: *entre los periodos en los que la turbina genera potencia, ¿cómo se relaciona la potencia de salida con la velocidad de giro del rotor y, para una misma velocidad de giro, existen diferencias asociadas a la temperatura de la góndola o a la estación del año?* Para ello se plantean tres objetivos específicos: (i) auditar y depurar de forma reproducible los registros brutos identificando sus limitaciones operacionales y de dependencia temporal; (ii) estimar e interpretar la curva de potencia y su elasticidad mediante regresión log-lineal múltiple evaluando su sensibilidad al espaciado temporal; y (iii) validar las hipótesis del modelo mediante el diagnóstico de residuos, el análisis de influencia y la selección formal de variables.
 
 # Los datos {#datos}
 
@@ -335,71 +333,206 @@ resolverlas:
 
 # Modelo estadístico {#modelo}
 
-\pendiente{Álvaro}{Formulación matemática del modelo elegido y sus hipótesis.
-Debe tener en cuenta las decisiones D-M1 a D-M7 de
-\texttt{docs/decisions.md} y las conclusiones del análisis exploratorio
-(ceros, no linealidad, colinealidad, dependencia temporal).}
+El análisis responde a la pregunta de *entre los periodos en los que la turbina genera potencia, ¿cómo se relaciona la potencia de salida con la velocidad de giro y, para una misma velocidad de giro, existen diferencias asociadas a la temperatura o época del año?* En el 67,7 % de los registros la potencia es cero. Un modelo único para ceros y valores positivos debería explicar a la vez si la turbina produce y cuánto produce. Por ello, la población de análisis se restringe a los periodos con producción, y el modelo describe la potencia condicionada a que sea positiva (D-M6).
 
-<!-- Plantilla de notación (Tema 6 de la asignatura). Sustituir por el modelo
-     concreto; no representa ninguna decisión tomada.
+La población se obtiene en varias etapas, partiendo primero de los registros de 2018 a 2022 y excluyendo 2017 por su cobertura parcial (solo de finales de noviembre a diciembre, D-M2). De ellos, se seleccionan los minutos con potencia positiva, ninguno presentando una velocidad de giro nula, y se agregan en medias de 10 minutos, la resolución habitual de las curvas de potencia (D-M4). Se filtran los intervalos con al menos 8 minutos de producción, tal que cada media refleje una producción sostenida y no un arranque o parada. La selección se hace antes de la agregación para no combinar en una misma media minutos con y sin producción. No se filtra por códigos de estado, pues su significado no está documentado (D-M3), ni se eliminan los huecos, que son ausencia de observaciones. La variable respuesta será la potencia de salida (`Power out`), y la del generador (`Power reg`) se emplea solo como comprobación (D-M1).
+
+La potencia extraída por un aerogenerador es $P = \frac{1}{2} \rho AC_p v^3$. Si la turbina opera a velocidad específica constante, la velocidad de giro será proporcional a la del viento y la potencia aumenta con el cubo de la velocidad (en revoluciones por minuto, RPM), lo que concuerda con la relación convexa vista en el análisis exploratorio. Al tomar logaritmos, la ley $P = a \cdot \mathrm{RPM}^b$ se transforma en una recta, y el exponente pasa a interpretarse como elasticidad. Con solo el término lineal, los residuos medios por decil de RPM muestran curvatura, por lo que se incorpora también su cuadrado.
+
+El modelo principal es
 
 \begin{equation}
-  Y_i = \beta_0 + \beta_1 x_{i1} + \cdots + \beta_k x_{ik} + \varepsilon_i,
-  \qquad \varepsilon_i \sim N(0, \sigma^2) \text{ independientes},
-  \quad i = 1, \dots, n.
-  (\#eq:modelo)
+  \begin{split}
+  \log P_i = {} & \beta_0 + \beta_1 \ell_i + \beta_2 \ell_i^2 + \beta_3 T_i  + \gamma_{O} O_i + \gamma_{I} I_i + \gamma_{V} V_i + \varepsilon_i, \\
+  & \varepsilon_i \sim N(0, \sigma^2) \text{ independientes,} \quad i = 1, \dots, n,
+  \end{split}
 \end{equation}
 
-donde $Y_i$ es ... y $x_{ij}$ ...
--->
+donde $P_i$ es la potencia media del intervalo $i$ (W), $\ell_i = \log(\mathrm{RPM}_i/140)$ la velocidad de giro centrada en su mediana, $T_i$ la temperatura de la góndola en grados centígrados y $O_i$, $I_i$ y $V_i$ los indicadores de otoño, invierno y primavera en el hemisferio sur, con el verano como referencia. La elasticidad a una velocidad dada es $\beta_1 + 2 \beta_2 \ell$, tal que $\beta_1$ es la elasticidad a 140 revoluciones por minuto. Un coeficiente $\beta$ asociado a la temperatura o a la estación modifica la potencia en un $100(e^{\beta}-1)$ %, manteniendo fijas las demás variables predictoras. De las variables del rotor solo se usan las revoluciones por minuto, por su colinealidad con `Windspeed (ref)` y `Voltage In`, y se excluye cualquier variable que sea consecuencia de la potencia. Para valorar la contribución de cada término se ajustan, sobre los mismos intervalos, los modelos anidados a1 ($\ell$), a2 ($+\ell^2$), a3 ($+T$) y a4 ($+$estación).
+
+Se asumen las hipótesis de Gauss-Markov junto con la normalidad de los errores. La asunción más delicada es la independencia, pues la potencia muestra autocorrelación y, con observaciones dependientes, los errores estándar están subestimados. La dependencia temporal sugiere que una regresión con estructura temporal en los errores (como un modelo ARMA) podría ser una extensión natural, pero al no presentarse en la asignatura, se procederá con la regresión múltiple. Así, además de la agregación, el modelo se reajusta sobre un subconjunto de la muestra, con intervalos separados al menos 6 horas. Una muestra aleatoria no resolvería el problema, pues no rompe la dependencia temporal.
+
+```{r model-setup, include=FALSE}
+# Resultados del modelo acordado (scripts/04_fit_agreed_model.R; se ajusta
+# aquí si no existen). Objetos para citar en el texto con `r ...`:
+#   prep    filas en cada paso de la preparación (minutos -> intervalos)
+#   ms      R2, R2 ajustado, sigma, F global (model_summary)
+#   coefs   coeficientes; effects: efectos en % de potencia y elasticidad
+#   tests   contrastes F de cada término (estación en conjunto)
+#   t3      contraste H0: elasticidad = 3 a ref_rpm (offset)
+#   r3      RPM a las que la elasticidad estimada vale 3
+#   elast   elasticidad e IC a 110, ref_rpm, 200 y 250 rpm
+#   fit_a   bondad de ajuste de a1-a4 (R2 de la secuencia anidada)
+#   dep     dependencia de los residuos: completa, espaciada, aleatoria
+#   season_w potencia estimada (W) por estación a ref_rpm
+#   rob     coeficientes con controles, estado 0 y Power reg (robustez)
+res     <- load_agreed_results()
+cond    <- res$data
+model   <- res$main
+ref_rpm <- res$settings$reference_rpm
+prep    <- attr(cond, "preparation_log")
+ms      <- model_summary(model)
+coefs   <- extract_coefficients(model)
+effects <- interpret_effects(model)
+tests   <- term_tests(model)
+t3      <- test_coefficient(model, "log_rpm_c", 3)
+r3      <- rpm_at_elasticity(model, 3, ref_rpm)
+elast   <- elasticity_curve(model, c(110, ref_rpm, 200, 250), ref_rpm)
+fit_a   <- lapply(res$candidates, model_summary)
+dep     <- dependence_summary(
+  stats::setNames(res[c("main", "thinned", "random")], names(res$times)),
+  res$times)
+season_w <- season_profile(model, cond, settings = res$settings)
+rob     <- compare_fits_across_samples(list(
+  "Con controles" = res$controls, "Estado 0" = res$status0,
+  "Power reg" = res$power_reg))
+```
 
 # Análisis estadístico {#analisis}
 
 ## Ajuste del modelo e interpretación de los parámetros
 
-\pendiente{Álvaro}{Ecuación del modelo ajustado e interpretación de los
-coeficientes en las unidades originales (\texttt{fit\_main\_model()},
-\texttt{extract\_coefficients()}).}
+La Tabla \@ref(tab:tab-coef) presenta el ajuste del modelo.
 
-```{r model-fit, eval=FALSE}
-analysis_data <- load_analysis_data("final", config)
-model <- fit_main_model(analysis_data, formula = NULL)
-extract_coefficients(model)
+```{r tab-coef}
+table_model_coefficients(coefs, effects,
+  caption = "Coeficientes del modelo principal para log(P).",
+  note = paste0("n = ", fmt_int(ms$n), " intervalos de 10 min (2018-2022). ",
+                "Efecto: 100(exp(b) - 1) % de potencia con las demás ",
+                "predictoras constantes. Referencia: verano."))
 ```
+
+
+La elasticidad a 140 rpm es 4,96 (un intervalo de confianza, IC, al 95 %, de 4,94 a 4,98). Un aumento del 1 % en la velocidad de giro se asocia con un incremento de casi el 5 % en la potencia. El coeficiente cuadrático es negativo, por lo que la elasticidad decrece con la velocidad (Figura \@ref(fig:fig-curve), derecha), tomando el valor de 6,3 a 110 rpm, alcanzando el valor cúbico de 3 en torno a 199 rpm y descendiendo a 1,7 a 250 rpm. Por debajo de unas 200 rpm, la potencia crece más rápido que el cubo, lo que podría explicarse por unas pérdidas del generador y del inversor de mayor peso relativo a una baja carga. Por encima, crece más despacio, posiblemente a medida que el sistema de control se aproxima a la potencia nominal. La curva ajustada (Figura \@ref(fig:fig-curve), izquierda) muestra adecuadamente la nube de intervalos. Su banda de confianza es muy estrecha debido al tamaño muestral, si bien la precisión está sobreestimada. La banda de predicción es asimétrica pues se calcula en escala logarítmica y, por la misma razón, $e^{\hat{y}}$ es la mediana estimada de la potencia, no su media.
+
+
+```{r fig-curve, fig.show="hold", out.width="49.5%", fig.width=3.16, fig.height=2.55, fig.cap="Izquierda: curva de potencia ajustada con bandas de confianza (sombreada) y de predicción al 95 % (discontinuas). Derecha: elasticidad estimada de la potencia respecto a las RPM; línea discontinua: 3."}
+grid <- agreed_curve_grid(model, cond, settings = res$settings)
+plot_power_curve_fit(cond, grid, response)
+plot_elasticity_curve(elasticity_curve(model, grid$rpm, ref_rpm))
+```
+
+
+Para una misma velocidad de giro y temperatura, la potencia es un 3,7 % superior en invierno, con un IC al 95 % de 2,8 al 4,5 %, y un 4,3 % superior en primavera respecto al verano, mientras que en otoño la diferencia no es significativa. A 140 rpm esto equivale a unos 112 W en verano frente a 117 W en primavera. El modelo no permite identificar el origen de estas diferencias, que podrían reflejar, por ejemplo, variaciones en el régimen de viento entre épocas. El efecto de la temperatura es mínimo y positivo, contrario a lo esperable por la menor densidad del aire caliente. La temperatura de la góndola no coincide con la del aire exterior y está asociada a la época del año y a la hora del día.
 
 ## Bondad de ajuste
 
-\pendiente{Álvaro}{$R^2$, $R^2$ ajustado o devianza, según el modelo
-(\texttt{model\_summary()}).}
+El modelo explica el 90 % de la variabilidad del logaritmo de la potencia (un $R^2$ ajustado de 0,8998). Al estar en escala logarítmica, el error estándar residual, $\hat{\sigma}=0{,}234$, se interpreta como un error relativo, pues la potencia de un intervalo concreto se predice con un error típico próximo al 23 %. Prácticamente toda la capacidad explicativa proviene de la velocidad de giro, donde por sí solo $\ell$ explica el 88,6 %, el término cuadrático suma 1,3 puntos porcentuales y la temperatura y la estación en conjunto apenas 0,06 puntos. Aunque ambas son significativas, su relevancia práctica es muy reducida en comparación con la de la velocidad de giro.
 
 ## Inferencia y cuantificación de la incertidumbre
 
-\pendiente{Álvaro}{Contrastes de significación e intervalos de confianza
-(\texttt{confidence\_intervals()}). Discutir el efecto de la dependencia
-temporal sobre los errores estándar.}
+El contraste de regresión rechaza que las variables predictoras carezcan en conjunto de efecto. La estación, contrastando sus tres coeficientes, es significativa, al igual que la temperatura, aunque con un estadístico mucho menor. Para contrastar la ley cúbica a 140 rpm, $H_0: \beta_1=3$, el modelo se reajusta con `offset(3 * log(RPM/140))`, de forma que el contraste $t$ habitual compara $\beta_1$ con 3. La hipótesis se rechaza con claridad, si bien a 200 rpm el intervalo de confianza de la elasticidad (2,93 a 3,03) sí incluye el 3. Esto no es contradictorio, pues la ley cúbica se refiere a la potencia captada por el rotor, mientras que aquí se mide la potencia eléctrica a la salida del inversor.
+
+
+Todos estos contrastes asumen errores independientes. En la muestra completa, el 93,4 % de los intervalos consecutivos distan menos de una hora, y la autocorrelación de orden 1 de los residuos es 0,23 (Durbin-Watson 1,54 frente a un valor próximo a 2 en ausencia de autocorrelación). En el subconjunto espaciado de la muestra, de 2.293 intervalos, la autocorrelación baja a 0,04, mientras que en una muestra aleatoria de 5.000 intervalos se mantiene en 0,11, pues el 38,4 % de sus pares consecutivos siguen separados por menos de una hora. Escoger observaciones al azar no elimina la dependencia temporal, pero espaciarlas en el tiempo sí.
+
+```{r tab-sens-dep}
+dep_txt <- paste0(dep$sample, " ", fmt_num(dep$lag1, 2), " (",
+                  fmt_num(dep$dw, 2), "; ", fmt_num(dep$pct_gap_1h), " %)",
+                  collapse = ", ")
+table_sensitivity(compare_fits_across_samples(list(
+    "Completa" = model, "Espaciada" = res$thinned,
+    "Aleatoria" = res$random)),
+  caption = "Coeficientes del modelo principal según la muestra.",
+  note = paste0(
+    "Estimación (error estándar); (ns): no significativo al 5 %. ",
+    "Espaciada: intervalos separados al menos ", res$settings$thinning_hours,
+    " h. Aleatoria: ", fmt_int(res$settings$random_n), " intervalos al ",
+    "azar. Autocorrelación de orden 1 de los residuos (Durbin-Watson; % de ",
+    "pares consecutivos a menos de 1 h): ", dep_txt, "."))
+```
+
+
+La Tabla \@ref(tab:tab-sens-dep) refleja el efecto sobre la inferencia. Con observaciones espaciadas, los errores estándar son unas 4 veces mayores. Cabe destacar que este aumento puede deberse tanto a la menor dependencia como a la reducción drástica del tamaño muestral: por pura formulación matemática, al pasar de 37.747 a 2.293 observaciones, cabe esperar unos errores estándar aproximadamente $\sqrt{37.747/2.293} \approx 4$ veces mayores. La forma de la curva se mantiene, pero la temperatura y las estaciones dejan de ser significativas al 5 %. En la muestra aleatoria, invierno y primavera conservan la significación precisamente porque esa muestra no elimina la dependencia.
+
+El modelo se ha reajustado, además, con otras tres especificaciones. Al incorporar el año y la franja del día como variables de control, el efecto de la temperatura cambia de signo. Su valor depende de las variables con las que se compare, lo que confirma que está confundido con la época y la hora. Al restringir el análisis a los intervalos con `Turbine status` = 0 en todos sus minutos, como criterio empírico, y al usar `Power reg` como respuesta, se alcanzan las mismas conclusiones.
+
+En resumen, la forma de la curva de potencia es robusta, pues la elasticidad es cercana a 5 a 140 rpm y disminuye hasta 3 hacia las 200 rpm. Las diferencias asociadas a la temperatura y época del año, por contraste, son pequeñas y no se mantienen al eliminar la dependencia temporal. En respuesta a la pregunta, cuando la turbina produce, su potencia depende casi exclusivamente de la velocidad de giro y con estos datos no puede afirmarse que la temperatura o la época del año la modifiquen para una misma velocidad de giro.
 
 ## Diagnóstico del modelo
 
-\pendiente{Daniel}{Residuos: linealidad, homocedasticidad, normalidad e
-independencia (\texttt{diagnose\_residuals()},
-\texttt{check\_autocorrelation()}, \texttt{check\_multicollinearity()}).}
+```{r diag-setup, include=FALSE}
+diag_res <- diagnose_residuals(model)
+vif_tbl  <- check_multicollinearity(model)
+aut_res  <- check_autocorrelation(model, cond)
+inf_tbl  <- check_influential_observations(model, cond)
+
+n_obs         <- stats::nobs(model)
+n_outliers    <- sum(inf_tbl$is_outlier, na.rm = TRUE)
+pct_outliers  <- 100 * n_outliers / n_obs
+n_cook_4n     <- sum(inf_tbl$is_influential, na.rm = TRUE)
+pct_cook_4n   <- 100 * n_cook_4n / n_obs
+max_cook      <- max(inf_tbl$cooks_d, na.rm = TRUE)
+max_lev       <- max(inf_tbl$leverage, na.rm = TRUE)
+p_params      <- length(stats::coef(model))
+lev_thresh    <- 2 * p_params / n_obs
+n_high_lev    <- sum(inf_tbl$leverage > lev_thresh, na.rm = TRUE)
+n_above_rated <- sum(cond[[response]] > rated, na.rm = TRUE)
+max_cook_high <- if (n_above_rated > 0) {
+  max(inf_tbl$cooks_d[cond[[response]] > rated], na.rm = TRUE)
+} else 0
+
+comp_tbl <- compare_models(res$candidates)
+sel_aic  <- select_model(model, direction = "both", k = 2)
+sel_bic  <- select_model(model, direction = "both")
+sel_thin <- select_model(res$thinned, direction = "both",
+                         k = log(stats::nobs(res$thinned)))
+```
+
+La validez de las inferencias anteriores requiere examinar el cumplimiento de las hipótesis sobre el término de error: linealidad, homocedasticidad, normalidad, independencia y ausencia de multicolinealidad [@faraway2004].
+
+En primer lugar, el gráfico de residuos estandarizados frente a los valores ajustados (Figura \@ref(fig:fig-diagnostics), izquierda) confirma que la inclusión del término cuadrático $\ell_i^2$ corrige adecuadamente la curvatura global de la relación en escala logarítmica, situando la tendencia suavizada prácticamente sobre la recta horizontal nula. No obstante, se aprecia cierta heterocedasticidad: la dispersión vertical es algo mayor en el rango intermedio de potencia ajustada y se estrecha en el extremo superior, donde el inversor regula la carga máxima. En segundo lugar, el gráfico cuantil-cuantil normal (Figura \@ref(fig:fig-diagnostics), derecha) muestra un ajuste satisfactorio a la diagonal teórica en el cuerpo central de la distribución, pero presenta colas más pesadas que la normal, especialmente en la cola inferior (residuos negativos asociados a intervalos con caídas puntuales de potencia). Dado el elevado tamaño muestral ($n = `r fmt_int(n_obs)`$), el teorema central del límite garantiza que las desviaciones de la normalidad no invalidan la distribución asintótica de los estimadores de mínimos cuadrados.
+
+```{r fig-diagnostics, fig.show="hold", out.width="49.5%", fig.width=3.16, fig.height=2.45, fig.cap="Diagnóstico de residuos del modelo principal. Izquierda: residuos estandarizados frente a valores ajustados con curva suavizada LOESS (ámbar). Derecha: gráfico cuantil-cuantil normal de los residuos estandarizados."}
+diag_res$plots$residuals_vs_fitted
+diag_res$plots$qq_plot
+```
+
+En cuanto a la independencia, el contraste de autocorrelación (`check_autocorrelation()`) arroja un estadístico de Durbin-Watson de `r fmt_num(aut_res$test$Estadistico, 2)` en la muestra completa, confirmando la presencia de autocorrelación positiva entre intervalos consecutivos de 10 minutos ($\hat{\rho}_1 = `r fmt_num(dep$lag1[dep$sample == "Completa"], 2)`$). Como se demostró en la Tabla \@ref(tab:tab-sens-dep), el reajuste sobre la submuestra espaciada al menos `r res$settings$thinning_hours` horas sitúa el estadístico de Durbin-Watson en `r fmt_num(dep$dw[dep$sample == "Espaciada"], 2)` ($\hat{\rho}_1 = `r fmt_num(dep$lag1[dep$sample == "Espaciada"], 2)`$), corrigiendo el problema de dependencia temporal.
+
+Por último, tras haber descartado en la fase de formulación las variables redundantes del rotor (`Windspeed (ref)` y `Voltage In`), el análisis de multicolinealidad (Tabla \@ref(tab:tab-vif)) verifica que todos los factores de inflación de la varianza (VIF) se sitúan entre `r fmt_num(min(vif_tbl$VIF), 2)` y `r fmt_num(max(vif_tbl$VIF), 2)`, muy por debajo del umbral crítico habitual de 5.
+
+```{r tab-vif}
+table_vif(vif_tbl,
+  caption = "Factores de inflación de la varianza (VIF) del modelo principal.",
+  note = paste("Un VIF cercano a 1 indica ausencia de colinealidad con el",
+               "resto de predictoras; valores superiores a 5 sugieren",
+               "multicolinealidad problemática."))
+```
 
 ## Observaciones anómalas e influyentes
 
-\pendiente{Daniel}{Identificación y tratamiento justificado
-(\texttt{check\_influential\_observations()}). Cualquier exclusión se
-documenta en \texttt{docs/decisions.md}.}
+El análisis de influencia (`check_influential_observations()`) evalúa los residuos estudentizados ($r_i^*$), el apalancamiento ($h_{ii}$) y la distancia de Cook ($D_i$) sobre los `r fmt_int(n_obs)` intervalos del modelo. Se identifican `r fmt_int(n_outliers)` observaciones con $\vert{}r_i^*\vert{} > 3$ (`r fmt_num(pct_outliers, 2)` % de la muestra, frente al 0,27 % esperable bajo normalidad estricta), concentradas mayoritariamente en residuos negativos donde la turbina mantuvo velocidad de giro pero entregó una potencia media inferior a la habitual durante parte del intervalo de 10 minutos. El apalancamiento máximo es reducido ($\max h_{ii} = `r fmt_num(max_lev, 4)`$, con `r fmt_int(n_high_lev)` intervalos por encima de la cota $2p/n = `r fmt_num(lev_thresh, 4)`$).
+
+Pese a que `r fmt_int(n_cook_4n)` observaciones (`r fmt_num(pct_cook_4n, 1)` %) superan el umbral conservador $D_i > 4/n$, **ninguna observación presenta una influencia globalmente determinante** según los criterios estándar ($D_i > 0{,}5$ o $D_i > 1$): la máxima distancia de Cook en toda la muestra es tan solo `r fmt_num(max_cook, 4)`. Asimismo, al examinar las anomalías pendientes del análisis exploratorio (Sección \@ref(respuesta), R1 y R2), se comprueba que tras agregar en intervalos de 10 minutos de producción sostenida ningún intervalo supera la potencia nominal de `r fmt_int(rated)` W (el máximo agregado es de `r fmt_int(max(cond[[response]]))` W), dado que los picos puntuales por encima de ese umbral duraban a lo sumo 2 minutos consecutivos (Tabla \@ref(tab:tab-response)) y quedan amortiguados en el promedio. Del mismo modo, las discrepancias con `Power reg` y los intervalos con presencia parcial de otros códigos de estado ya fueron contrastados en el análisis de sensibilidad (Sección 5.3), comprobándose la estabilidad de la curva. En consecuencia, no existe justificación empírica ni documental para eliminar observaciones, por lo que se conservan todos los intervalos (decisión documentada en `docs/decisions.md`).
 
 ## Simplificación del modelo
 
-\pendiente{Daniel}{Comparación de modelos y selección automática de
-variables (\texttt{compare\_models()}, \texttt{select\_model()}).}
+Para evaluar formalmente si la complejidad del modelo principal (`a4`) está justificada frente a especificaciones más parsimoniosas, la Tabla \@ref(tab:tab-selection) recoge la comparación de la secuencia de modelos anidados (`a1`--`a4`) mediante criterios de información y contrastes $F$ parciales (`compare_models()`).
+
+```{r tab-selection}
+added_labels <- c(
+  a1 = paste0("log(RPM/", ref_rpm, ")"),
+  a2 = paste0("+ log(RPM/", ref_rpm, ")^2"),
+  a3 = "+ Temperatura góndola",
+  a4 = "+ Estación del año"
+)
+table_model_comparison(comp_tbl, added = added_labels,
+  caption = "Comparación de la secuencia de modelos anidados para log(P).",
+  note = paste0("Modelos ajustados sobre los mismos n = ", fmt_int(n_obs),
+                " intervalos. El p-valor F contrasta cada modelo frente al ",
+                "inmediatamente anterior mediante ANOVA."))
+```
+
+El paso del modelo lineal en logaritmos (`a1`) al cuadrático (`a2`) produce una reducción masiva tanto en el AIC como en el BIC y eleva el $R^2$ ajustado de `r fmt_num(comp_tbl$R2_ajustado[1], 4)` a `r fmt_num(comp_tbl$R2_ajustado[2], 4)` ($p < 0{,}001$). Al aplicar el algoritmo de selección automática paso a paso (`select_model()`) con penalización de Akaike ($k = 2$) sobre la muestra completa, el procedimiento retiene el modelo completo `a4`, dado que con $n = `r fmt_int(n_obs)`$ observaciones la penalización fija $2p$ resulta insuficiente para filtrar efectos de magnitud muy pequeña. Por el contrario, al emplear la penalización bayesiana BIC ($k = \log n = `r fmt_num(log(n_obs), 2)`$), que exige una ganancia explicativa proporcional al tamaño muestral, el criterio descarta la temperatura en `a3` (el BIC aumenta de `r fmt_num(comp_tbl$BIC[2], 1)` a `r fmt_num(comp_tbl$BIC[3], 1)`) y, aún más relevante, al aplicar la selección automática sobre la submuestra espaciada libre de autocorrelación ($n = `r fmt_int(stats::nobs(res$thinned))`$), el procedimiento selecciona directamente el modelo **`a2`**, conservando únicamente $\ell_i$ y $\ell_i^2$. Así, aunque se mantiene `a4` como marco inferencial para dar respuesta explícita a la pregunta sobre temperatura y época del año, el diagnóstico y la selección de variables demuestran que el modelo cuadrático en velocidad de giro (`a2`) constituye la especificación parsimoniosa óptima.
 
 # Conclusiones {#conclusiones}
 
-\pendiente{Daniel}{Resumen de resultados, limitaciones (incluidas las
-recogidas en \texttt{docs/methodology\_notes.md}) y posibles extensiones,
-con referencias. Revisión final del grupo.}
+El análisis estadístico desarrollado sobre los registros SCADA de la turbina eólica urbana Skystream 3.7 [@bassi2023dataset; @bassi2023data] permite extraer tres conclusiones principales en relación con los objetivos planteados:
+
+1. **Respuesta a la pregunta de investigación y modelo parsimonioso:** Durante los periodos de producción sostenida (2018--2022), la potencia eléctrica entregada a la salida del inversor queda determinada casi por completo por la velocidad de giro del rotor (`RPM`), explicando por sí sola cerca del 90 % de la variabilidad de $\log P$. La relación sigue una ley potencial con elasticidad decreciente ($\hat{\beta}_1 = `r fmt_num(coefs$estimate[coefs$term == "log_rpm_c"], 2)`$ a `r ref_rpm` rpm, convergiendo hacia el exponente teórico cúbico en torno a `r fmt_int(round(r3))` rpm). Una vez controlada la velocidad de giro y corregida la dependencia temporal mediante una submuestra espaciada, ni la temperatura de la góndola ni la estación del año presentan efectos estadísticamente significativos ni relevancia práctica (aportando conjuntamente menos de 0,06 puntos porcentuales de $R^2$). La selección de variables mediante BIC en observaciones independientes confirma que el modelo cuadrático en $\log(\text{RPM})$ (`a2`) captura toda la estructura sistemática relevante.
+2. **Limitaciones de los datos y del enfoque metodológico:** Las conclusiones están sujetas a cuatro limitaciones intrínsecas al conjunto de datos y al alcance de las técnicas empleadas [@ugr_ece; @faraway2004; @crawley2015]: (i) la elevada proporción de registros con potencia nula (`r fmt_num(pct_zero)` %) y los huecos de grabación (`r fmt_num(ga$pct_span_in_gaps)` % del tiempo calendario) restringen la validez del modelo lineal al régimen condicional activo; (ii) la carencia de un anemómetro independiente (`Windspeed (ref)` se deriva de las RPM) y el hecho de que `T3` mida la temperatura interna de la góndola impiden separar las propiedades físicas del viento exterior de la disipación térmica del equipo; (iii) la ausencia de documentación en el diccionario sobre los códigos de `Turbine status` y sobre los registros puntuales que superan la potencia nominal de `r fmt_int(rated)` W limita la definición operacional de la población; y (iv) la autocorrelación residual de la serie original subestima los errores estándar por mínimos cuadrados ordinarios en la muestra completa, haciendo imprescindible el contraste sobre submuestras espaciadas.
+3. **Líneas de extensión:** Como continuación natural de este trabajo, se propone acoplar un modelo en dos partes que integre la regresión logística de la probabilidad de producción con el modelo condicional log-lineal, incorporar modelos de regresión con estructura temporal explícita en los errores (como procesos ARMA o estimadores de covarianza robustos a la autocorrelación de tipo Newey-West) y cruzar las marcas temporales con datos meteorológicos externos de la estación de la Universidad de São Paulo para modelizar directamente la curva de potencia frente a la velocidad real del viento.
 
 # Referencias {-}
 

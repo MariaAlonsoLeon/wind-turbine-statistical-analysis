@@ -10,7 +10,7 @@
 #' Paquetes que necesita el proyecto (única lista; renv.lock fija versiones)
 project_packages <- function() {
   c("readr", "dplyr", "tibble", "rlang", "vctrs", "ggplot2", "scales",
-    "knitr", "kableExtra", "rmarkdown", "bookdown", "here", "yaml")
+    "knitr", "kableExtra", "rmarkdown", "bookdown", "here", "yaml", "car", "lmtest")
 }
 
 #' Carga los paquetes del proyecto con un error informativo si falta alguno

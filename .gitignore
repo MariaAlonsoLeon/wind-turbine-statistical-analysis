@@ -1,0 +1,49 @@
+# =============================================================================
+# Ficheros que NO se versionan
+# -----------------------------------------------------------------------------
+# Las rutas empiezan por "/" para que solo afecten a la raíz del proyecto: los
+# CSV de tests/testthat/fixtures/ y reports/preamble.tex SÍ se versionan.
+# =============================================================================
+
+# --- RStudio / R --------------------------------------------------------------
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+.Renviron
+
+# --- renv: se versionan renv.lock, renv/activate.R y renv/settings.json -------
+/renv/library/
+/renv/local/
+/renv/cellar/
+/renv/lock/
+/renv/python/
+/renv/sandbox/
+/renv/staging/
+
+# --- Datos originales (~260 MB): cada miembro los descarga de Zenodo ---------
+# Se conserva data/raw/data_description.txt (diccionario de datos).
+/data/raw/*.csv
+
+# --- Datos y resultados generados por los scripts ------------------------------
+/data/processed/
+/data/final/
+/outputs/
+
+# --- Informe: PDF final e intermedios de knitr / LaTeX ------------------------
+/reports/output/
+/reports/*.pdf
+/reports/actividad1.tex
+/reports/*.log
+/reports/*.aux
+/reports/*.out
+/reports/*.knit.md
+/reports/*_files/
+/reports/*_cache/
+
+# --- Sistema operativo y editores -----------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+~$*
+.vscode/

@@ -54,9 +54,22 @@ analysis:
   # "Power reg" (potencia procedente del generador, W). Pendiente de
   # confirmación por el grupo.
   response: power_out_w
-  # PENDIENTE (D-M2..D-M5): filtros metodológicos. Valores por defecto = no
-  # filtrar nada. Ver docs/decisions.md.
-  period_start: null        # p. ej. "2018-01-01"
-  period_end: null          # p. ej. "2022-12-31"
-  turbine_status_keep: null # p. ej. [1, 3]  (sin documentación que lo avale)
-  aggregation: none         # none | 10min | hour (pendiente)
+  # D-M2 (provisional): años completos 2018-2022; 2017 solo cubre 30 días.
+  period_start: "2018-01-01"
+  period_end: "2022-12-31"
+  # D-M3 (provisional): sin filtro por estado (códigos sin documentar). El
+  # modelo se reajusta con intervalos de turbine_status = 0 como comprobación.
+  turbine_status_keep: null
+  # D-M4: data/final se mantiene por minuto. La agregación del MODELO se hace
+  # en R/06_modeling.R (sección model), después de seleccionar los minutos con
+  # producción (D-M6); agregar antes mezclaría minutos con y sin producción.
+  aggregation: none
+  # Parámetros del modelo (R/06_modeling.R, model_settings()).
+  model:
+    interval: 10min              # D-M4: intervalos de 10 min (estándar de curvas de potencia)
+    min_producing_minutes: 8     # D-M4/D-M6: >= 8 de 10 min con P > 0 (producción sostenida)
+    min_records: 8               # modelo de producción: intervalos casi completos
+    production_share: 0.5        # "produce" si P > 0 en al menos la mitad de los minutos
+    reference_year: 2018         # nivel de referencia del factor año
+    reference_rpm: 140           # centrado de log(RPM): mediana de los intervalos del modelo
+    thinning_hours: 6            # D-M5: separación de la submuestra espaciada
