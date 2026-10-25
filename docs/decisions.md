@@ -168,8 +168,7 @@ Propuesta aplicada por Álvaro (11/10/2026) para poder ajustar el modelo,
 ### D-D2 · Simplificación del modelo — ✅ Daniel
 - Se evalúan los modelos anidados `a1`--`a4` (`R/09_model_selection.R`).
 - Decisión: **se mantiene el modelo completo `a4`** como marco inferencial principal para responder directamente a la pregunta de investigación sobre temperatura y época del año.
-- No obstante, queda formalmente documentado que bajo el criterio BIC ($k = \log n$) y en submuestras espaciadas libres de autocorrelación, el modelo parsimonioso óptimo es `a2` (velocidad de giro con término cuadrático).
-
+- No obstante, queda formalmente documentado que bajo el criterio BIC ($k = \log n$) y en la submuestra espaciada, el modelo más parsimonioso entre los candidatos considerados es `a2` (velocidad de giro con término cuadrático).
 ---
 
 ## Historial
