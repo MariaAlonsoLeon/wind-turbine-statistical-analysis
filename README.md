@@ -138,28 +138,3 @@ source("tests/testthat.R")
   definiciones en `note`; unidades en la cabecera.
 * **Texto:** primera mención "potencia de salida (`Power out`)", después
   "potencia de salida"; nombres exactos en `código` solo al hablar de columnas.
-
-## Trabajo en grupo
-
-Ramas recomendadas:
-
-```
-main                          versión estable (compila y pasa los tests)
-feature/maria-data            datos, calidad, EDA, secciones 2-3
-feature/alvaro-model          R/06, R/07, sección 4 y 5.1-5.3
-feature/daniel-diagnostics    R/08, R/09, secciones 5.4-5.6 y 6
-```
-
-Normas: no editar `data/raw/`; toda decisión nueva en `docs/decisions.md`;
-fusionar en `main` solo si `source("tests/testthat.R")` y el
-render del informe funcionan; las cajas **TODO** del PDF deben desaparecer
-antes de la entrega.
-
-## Estado
-
-| Parte | Responsable | Estado |
-|---|---|---|
-| Datos, calidad, EDA, secciones 1 (contexto), 2 y 3 | María | implementado (verificado con 2017) |
-| Pregunta de investigación y filtros (D-M1…D-M8) | Grupo | confirmado y documentado |
-| Modelo, ajuste, inferencia (secciones 4, 5.1–5.3) | Álvaro | implementado (tests de modelo en tests/testthat/test-modeling-*.R) |
-| Diagnóstico, influyentes, selección, conclusiones | Daniel | implementado |
