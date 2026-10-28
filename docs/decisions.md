@@ -45,10 +45,11 @@ Estados: ✅ aplicada · 🟡 provisional · ⏳ pendiente del grupo.
 
 ## Decisiones metodológicas (requieren acuerdo del grupo)
 
-Por defecto `config.yml` **no aplica ningún filtro**: `data/final` es igual a
-`data/processed` hasta que el grupo decida.
+Propuesta aplicada por Álvaro (11/10/2026) para poder ajustar el modelo,
+**pendiente de confirmación del grupo** (estado 🟡). `data/final` = periodo
+2018–2022 por minuto; población y agregación del modelo en `R/06_modeling.R`.
 
-### D-M1 · Variable respuesta — 🟡 provisional
+### D-M1 · Variable respuesta — 🟡 provisional (aplicada)
 * Opciones: `Power out` ("Power output of the inverter (W)") o `Power reg`
   ("Power from generator (W)").
 * Evidencia: asociación lineal prácticamente perfecta (Pearson 0,9991 con
@@ -58,87 +59,116 @@ Por defecto `config.yml` **no aplica ningún filtro**: `data/final` es igual a
   idénticos: hay discrepancias aisladas grandes. Detalle en
   `outputs/tables/response_out_vs_reg_*.csv` (resumen, por estado y casos
   extremos).
-* Propuesta: `Power out`, por su interpretación como potencia a la salida
-  del inversor. Revisar si las discrepancias resultan relevantes (p. ej.
-  ajustando el modelo final también con `Power reg` como comprobación).
+* Aplicado: `Power out`, por su interpretación como potencia entregada a la
+  red. Comprobación: el modelo principal reajustado con `Power reg`
+  (`fit_all_models()`, columna "Power reg" de `model_sensitivity.csv`) da
+  coeficientes muy parecidos (elasticidad a 140 rpm 4,74 frente a 4,91; mismos
+  signos y órdenes de magnitud en temperatura, año y franja).
 * Parámetro: `analysis.response`.
 
-### D-M2 · Periodo de estudio — ⏳
-* 2017 solo cubre 29/11–31/12 (30 días con datos; cobertura 66 %). ¿Incluirlo, o usar
-  años completos?
+### D-M2 · Periodo de estudio — 🟡 provisional (aplicada)
+* 2017 solo cubre 29/11–31/12 (30 días con datos; cobertura 66 %).
+* Aplicado: **2018-01-01 a 2022-12-31** (cinco años completos). Con el año
+  como factor del modelo, 2017 sería un nivel estimado con un mes de
+  verano austral: su coeficiente mezclaría año y estación. El EDA
+  (secciones 2-3) sigue usando todos los registros (`data/processed`).
 * Parámetros: `analysis.period_start`, `analysis.period_end`.
 
-### D-M3 · Estados operativos incluidos — ⏳
+### D-M3 · Estados operativos incluidos — 🟡 provisional (aplicada)
 * Los códigos **no tienen significado documentado**. Empíricamente, con
   `Turbine status` = 0 hay producción en el 99 % de los registros y con 1, 3,
   33, 35 nunca.
-* Opciones: (a) no filtrar y modelizar todo; (b) filtrar por estado con una
-  justificación externa (manual del fabricante Skystream 3.7); (c) modelizar
-  solo registros con potencia > 0 (ver D-M6). Cualquier opción debe
-  explicarse en el informe.
+* Aplicado: **sin filtro por estado** (`turbine_status_keep: null`). Al
+  modelizar solo la producción (D-M6) los estados sin producción quedan
+  fuera sin necesidad de interpretar los códigos. Comprobación: el modelo se
+  reajusta con los intervalos cuyos minutos tienen todos `turbine_status` = 0
+  (columna "Estado 0" de `model_sensitivity.csv`): mismas conclusiones
+  cualitativas.
 * Parámetro: `analysis.turbine_status_keep`.
 
-### D-M4 · Agregación temporal — ⏳
-* Opciones: minuto (sin agregar), 10 min, hora. Agregar reduce la
-  autocorrelación de alta frecuencia y el tamaño, pero promedia estados.
-* Implementado en `aggregate_time()`: medias para continuas, último valor
-  para contadores y valor modal para códigos.
-* Parámetro: `analysis.aggregation`.
+### D-M4 · Agregación temporal — 🟡 provisional (aplicada)
+* Aplicado: **intervalos de 10 min** con al menos **8 minutos con
+  producción**. Es la resolución habitual de las curvas de potencia (norma
+  IEC 61400-12-1). Con medias horarias y el mismo criterio (≥ 48 de 60 min)
+  solo quedarían 4.863 horas, frente a 37.747 intervalos de 10 min.
+* `data/final` se mantiene por minuto (`analysis.aggregation: none`): la
+  agregación del modelo se hace en `prepare_conditional_data()`
+  (`R/06_modeling.R`) DESPUÉS de seleccionar los minutos con producción;
+  agregar antes mezclaría minutos con y sin producción en la media.
+* Parámetros: `analysis.model.interval`, `analysis.model.min_producing_minutes`.
 
-### D-M5 · Dependencia temporal — ⏳
-* ACF de la serie de medias horarias: 0,70 a 1 h y máximo local de 0,38 a 24 h (2017), compatible con una componente o periodicidad diaria.
+### D-M5 · Dependencia temporal — 🟡 provisional (aplicada)
+* ACF de la serie de medias horarias: 0,76 a 1 h y máximo local de 0,39 a
+  24 h (2017–2022), compatible con una componente diaria.
 * El modelo lineal supone errores independientes: con autocorrelación positiva
   no tratada, los errores estándar tienden a estar subestimados.
-* Opciones a discutir (sin ARIMA, fuera del alcance): agregar (D-M4),
-  submuestrear con separación temporal, o mantener el modelo y declarar la
-  limitación; contrastarlo con Durbin-Watson en el diagnóstico (Daniel).
+* Aplicado, con herramientas del curso (sin ARIMA): (1) agregación (D-M4);
+  (2) **análisis de sensibilidad con una submuestra espaciada**
+  (`thin_sample()`, un intervalo cada **6 h**), en la que la autocorrelación
+  de orden 1 de los residuos es despreciable (0,04 frente a 0,23 en la
+  muestra completa); (3) la limitación se declara en el informe. El
+  diagnóstico formal (Durbin-Watson, ACF de residuos) es de Daniel.
+* Parámetro: `analysis.model.thinning_hours`.
 
-### D-M6 · Población de análisis — ⏳ **DECISIÓN CENTRAL antes del ajuste**
+### D-M6 · Población de análisis — 🟡 provisional (aplicada) **DECISIÓN CENTRAL**
 * `Power out` = 0 en el 67,7 % de los registros (2017–2022) y los valores
-  positivos son muy asimétricos. Esto describe la distribución MARGINAL de la
-  respuesta; las hipótesis del modelo lineal se refieren a la distribución de
-  los errores CONDICIONADA a las predictoras. Son señales que condicionan la
-  población y la especificación, cuya adecuación se evaluará con el ajuste y
-  el diagnóstico de residuos.
-* Opciones (no decididas):
-  1. modelizar toda la potencia observada (ceros incluidos);
-  2. modelizar la potencia condicionada a producción positiva (P > 0), y
-     declararlo como modelo condicional;
-  3. definir una población operacional concreta (por estados, D-M3, o por
-     rangos de RPM), con justificación explícita.
-  Variante de 1+2: modelo en dos partes (¿produce? → GLM binomial;
-  ¿cuánto? → lm).
-* Determina la pregunta de investigación (D-M8) y el tipo de modelo (D-M7).
+  positivos son muy asimétricos (distribución MARGINAL).
+* Aplicado: **modelo en dos partes**.
+  1. Parte principal (lm): potencia **condicionada a producción**, en
+     intervalos de producción sostenida (D-M4). No requiere interpretar los
+     códigos de estado. En 2018–2022 no hay ningún minuto con P > 0 y
+     RPM = 0 (mínimo 59 rpm), de modo que log(RPM) siempre está definido.
+  2. Parte complementaria (glm binomial): probabilidad de que un intervalo
+     casi completo (≥ 8 registros) tenga producción en al menos la mitad de
+     sus minutos, con predictoras externas a la turbina (temperatura,
+     estación, franja del día, año). RPM y estados se excluyen: determinan la
+     producción casi por definición (separación).
+* Parámetros: `analysis.model.min_records`, `analysis.model.production_share`.
 
-### D-M7 · Tipo de modelo y forma funcional — ⏳ (Álvaro)
-* Relación potencia–RPM claramente convexa; colinealidad fuerte entre RPM,
+### D-M7 · Tipo de modelo y forma funcional — ✅ Álvaro
+* Relación potencia–RPM convexa; colinealidad fuerte entre RPM,
   `Windspeed (ref)`, `Voltage In` y `min v from rpm`.
-* `Windspeed (ref)` se calcula a partir de RPM: usar ambas sería redundante.
+* Aplicado: `lm(log P ~ l + l^2 + temperatura + año + franja)`, con
+  l = log(RPM / 140) (140 rpm = mediana de los intervalos del modelo).
+  * El logaritmo convierte la ley potencial P = a·RPM^b en una recta y hace
+    los efectos multiplicativos (% de potencia), como en el ejemplo de Forbes
+    del Tema 6.
+  * El término cuadrático es necesario: con solo l los residuos medios por
+    decil de RPM dibujan una U invertida (−0,13 / +0,06 / −0,13) que
+    desaparece con l^2; R² pasa de 0,886 a 0,899. La elasticidad
+    dlog P / dlog RPM pasa a depender de la velocidad de giro.
+  * Centrar en 140 rpm hace que el coeficiente de l sea la elasticidad a esa
+    velocidad y reduce la correlación entre l y l^2.
+  * Solo RPM entre las variables del rotor; nunca variables consecuencia de
+    la respuesta.
+  * Alternativa evaluada: `poly(rpm, 3)` en W (R² 0,947 en W, no comparable
+    con el R² en log); se descarta por interpretación y porque su
+    variabilidad residual crece con la potencia (de 11 a 42 W entre deciles
+    de RPM).
+* Modelos anidados m1–m5 ajustados sobre las mismas filas
+  (`fit_candidate_models()`), entregados a 09_model_selection.R.
 
-### D-M8 · Pregunta de investigación — ⏳ (grupo)
-* Depende de D-M6. Propuestas en `docs/methodology_notes.md`.
+### D-M8 · Pregunta de investigación — 🟡 provisional (propuesta de Álvaro)
+* ¿Cómo depende la potencia entregada por la turbina, cuando produce, de su
+  velocidad de giro? Y, a igual velocidad de giro, ¿difiere según la
+  temperatura en la góndola o el año de operación? Complemento: ¿de qué
+  depende la probabilidad de que la turbina esté produciendo?
+* Combina P1, P2, P3 y P4 de `docs/methodology_notes.md`.
 
 ---
 
-## Cuestiones pendientes de interpretación (no son decisiones aún)
 
-### R1 · Registros con potencia superior a la nominal — ⏳
-* Con 2017–2022 el máximo de `Power out` es 3.713 W, frente a 1.800 W
-  nominales (dato de los autores) y a 2.400 W de `Power max` ("Inverter
-  maximum power production" según el diccionario).
-* La documentación proporcionada (diccionario y enunciado) **no explica**
-  estos valores. No se eliminan ni se interpretan como error.
-* Detalle reproducible (`high_power_check()`, ficheros
-  `outputs/tables/response_high_power_*.csv`): nº de registros, episodios y
-  su duración, años y meses, estados asociados, perfil de RPM y otras
-  variables frente a registros con producción normal, y registros por encima
-  de `Power max`.
-* Entrada para Daniel: revisar si estos registros son influyentes en el
-  modelo antes de cualquier decisión.
+## Decisiones tras el diagnóstico y selección (Daniel)
 
-### R2 · Discrepancias Power out − Power reg — ⏳
-* Ver D-M1 y `outputs/tables/response_out_vs_reg_*.csv`.
+### D-D1 · Tratamiento de observaciones atípicas e influyentes (R1, R2) — ✅ Daniel
+- Tras agregar los datos en intervalos de 10 minutos de producción sostenida, **ningún intervalo supera los 1.800 W** (el máximo es muy inferior) y los picos puntuales quedan amortiguados.
+- La máxima distancia de Cook observada en toda la muestra es $D_i = 0,0044 \ll 0,5$. Ninguna observación ejerce una influencia determinante.
+- Decisión: **no se excluye ningún registro** de la muestra condicional agregada, resolviendo definitivamente las cuestiones pendientes R1 y R2 sin pérdida de datos.
 
+### D-D2 · Simplificación del modelo — ✅ Daniel
+- Se evalúan los modelos anidados `a1`--`a4` (`R/09_model_selection.R`).
+- Decisión: **se mantiene el modelo completo `a4`** como marco inferencial principal para responder directamente a la pregunta de investigación sobre temperatura y época del año.
+- No obstante, queda formalmente documentado que bajo el criterio BIC ($k = \log n$) y en la submuestra espaciada, el modelo más parsimonioso entre los candidatos considerados es `a2` (velocidad de giro con término cuadrático).
 ---
 
 ## Historial
@@ -149,3 +179,5 @@ Por defecto `config.yml` **no aplica ningún filtro**: `data/final` es igual a
 | D-M1 | Respuesta provisional `power_out_w` | María (pendiente de confirmar) |
 | I10–I11, D-M1, D-M6 | Revisión final: estilo único, Pearson y Spearman etiquetados, distribución marginal frente a condicional | María |
 | I7–I9, D-M1, D-M6, R1, R2 | Segunda revisión: definición y verificación de huecos, comprobaciones de la respuesta, población de análisis como decisión central | María |
+| D-M1–D-M8 | Propuesta aplicada para el modelo: periodo 2018–2022, sin filtro de estados, intervalos de 10 min de producción sostenida, modelo en dos partes, log-log con término cuadrático, sensibilidad con submuestra espaciada | Álvaro |
+| D-D1, D-D2 | Diagnóstico y simplificación: confirmación de robustez sin exclusión de atípicos (R1, R2 resueltos) e identificación de `a2` como modelo parsimonioso bajo BIC | Daniel |
